@@ -1,0 +1,12 @@
+# Supabase project configuration
+# For more information, refer to the documentation: https://supabase.com/docs/reference/cli/config
+
+[functions.focus-league]
+  # This setting allows the function to be called without a user's JWT,
+  # which is necessary for calls from the dev tools page or scheduled jobs.
+  # This resolves the "401 Unauthorized" error.
+  verify_jwt = false
+
+[functions.league-daily]
+  # This function is also a backend task and should not require a JWT.
+  verify_jwt = false

@@ -1,0 +1,1 @@
+[{"id":"1","description":"Migrate leagueApi service into app src/core/services using Expo supabase client + envs","status":"NOT_STARTED"},{"id":"2","description":"Ensure GoalsProvider wraps Expo root layout","status":"NOT_STARTED"},{"id":"3","description":"Add debug-goals screen for CRUD verification","status":"NOT_STARTED"}]
