@@ -3,12 +3,15 @@ import MITCard from '@/components/dashboard/MITCard';
 import WeeklyStreak from '@/components/dashboard/WeeklyStreak';
 import Card from '@/components/ui/Card';
 import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function DashboardScreen() {
-    // Mock data - will be replaced with real data from hooks/Supabase
+    const router = useRouter();
+
+    // Mock data
     const todayMIT = {
         name: 'Finish Q4 Report',
         goalTag: 'Core Goal',
@@ -40,10 +43,8 @@ export default function DashboardScreen() {
                         <Text style={styles.title}>Today</Text>
                         <Text style={styles.date}>{currentDate}</Text>
                     </View>
-                    <TouchableOpacity>
-                        <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>U</Text>
-                        </View>
+                    <TouchableOpacity onPress={() => router.push('/settings')}>
+                        <Text style={styles.settingsIcon}>⚙️</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -70,10 +71,7 @@ export default function DashboardScreen() {
                 </Card>
 
                 {/* Diagnostic Card */}
-                <Card
-                    style={styles.diagnosticCard}
-                    borderColor={Colors.error}
-                >
+                <Card style={styles.diagnosticCard} borderColor={Colors.error}>
                     <Text style={styles.diagnosticTitle}>Distraction Alert</Text>
                     <Text style={styles.diagnosticText}>
                         You are often interrupted by 'Social Media' around 2 PM.
@@ -84,7 +82,6 @@ export default function DashboardScreen() {
     );
 }
 
-// Simple chart bar component
 function ChartBar({ label, percentage }: { label: string; percentage: number }) {
     return (
         <View style={styles.barContainer}>
@@ -129,22 +126,9 @@ const styles = StyleSheet.create({
         color: Colors.text.secondary,
         marginTop: 4,
     },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: Colors.border.default,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: Colors.border.default,
+    settingsIcon: {
+        fontSize: 28,
     },
-    avatarText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-    },
-    // Chart Card
     chartCard: {
         marginBottom: Spacing.lg,
     },
@@ -192,7 +176,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.primary,
         borderRadius: 4,
     },
-    // Diagnostic Card
     diagnosticCard: {
         marginBottom: Spacing.lg,
     },

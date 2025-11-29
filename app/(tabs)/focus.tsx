@@ -1,117 +1,192 @@
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import AddTaskSheet from '@/components/focus/AddTaskSheet';
+import MonthCalendar from '@/components/focus/MonthCalendar';
+import TimeAxisCalendar, { Task } from '@/components/focus/TimeAxisCalendar';
+import TimerModeModal from '@/components/focus/TimerModeModal';
+import TimerView from '@/components/focus/TimerView';
+import ViewSwitcher from '@/components/focus/ViewSwitcher';
+import WeekCalendar from '@/components/focus/WeekCalendar';
+import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { useAuth } from '@/core/context/AuthContext';
+import { focusApi } from '@/core/services/focusApi';
+import { goalsApi } from '@/core/services/goalsApi';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+type ViewMode = 'day' | 'week' | 'month';
 
 export default function FocusScreen() {
     const router = useRouter();
-    const [selectedTab, setSelectedTab] = useState<'stopwatch' | 'pomodoro' | 'timelapse'>('stopwatch');
-    const [honestyMode, setHonestyMode] = useState(true);
-    const [isRunning, setIsRunning] = useState(false);
+    const [currentView, setCurrentView] = useState<ViewMode>('day');
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [timerModalVisible, setTimerModalVisible] = useState(false);
+    const [addTaskSheetVisible, setAddTaskSheetVisible] = useState(false);
+    const [selectedTime, setSelectedTime] = useState('');
 
-    const mockGoal = 'Work';
-    const mockSubgoal = 'Finish Q4 Report';
-    const mockTime = '00:24:15';
+    const [activeSession, setActiveSession] = useState<{
+        task: Task;
+        mode: 'stopwatch' | 'pomodoro' | 'timelapse';
+    } | null>(null);
+
+    const { user } = useAuth();
+    const [coreGoals, setCoreGoals] = useState<{ id: string; name: string; color: string }[]>([]);
+
+    // Load goals
+    useEffect(() => {
+        if (user) {
+            loadGoals();
+        }
+    }, [user]);
+
+    const loadGoals = async () => {
+        if (!user) return;
+        try {
+            const goals = await goalsApi.getCoreGoals(user.id);
+            setCoreGoals(goals.map(g => ({
+                id: g.goal_id,
+                name: g.goal_name,
+                color: '#3B82F6', // TODO: Add color to Goal table or logic
+            })));
+        } catch (error) {
+            console.error('Failed to load goals:', error);
+        }
+    };
+
+    const handleTimerComplete = async (duration: number) => {
+        if (!user || !activeSession) return;
+
+        try {
+            await focusApi.createSession({
+                user_id: user.id,
+                goal_id: activeSession.task.goalId,
+                duration_minutes: Math.ceil(duration / 60),
+                mode: activeSession.mode === 'stopwatch' ? 'Stopwatch' :
+                    activeSession.mode === 'timelapse' ? 'Timelapse' : 'Pomodoro',
+                honesty_mode: true, // Default to true for now
+                interruption_count: 0,
+            });
+            // Alert.alert('專注完成', '紀錄已儲存！'); // Optional feedback
+        } catch (error) {
+            console.error('Failed to save session:', error);
+        }
+    };
+
+    // Mock tasks (Keep mock tasks for now, as we don't have a tasks table yet)
+    const [tasks, setTasks] = useState<Task[]>([
+        {
+            id: '1',
+            name: '補習',
+            goalId: '1',
+            goalName: '學測頂標',
+            goalColor: '#3B82F6',
+            startTime: '09:00',
+            duration: 120,
+            isMIT: true,
+        },
+    ]);
+
+    const currentDate = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+    });
+
+    const handleTaskPress = (task: Task) => {
+        setSelectedTask(task);
+        setTimerModalVisible(true);
+    };
+
+    const handleTimeSlotPress = (time: string) => {
+        setSelectedTime(time);
+        setAddTaskSheetVisible(true);
+    };
+
+    const handleSelectTimerMode = (mode: 'stopwatch' | 'pomodoro' | 'timelapse') => {
+        setTimerModalVisible(false);
+        if (selectedTask) {
+            setActiveSession({ task: selectedTask, mode });
+        }
+    };
+
+    const handleSaveTask = (taskData: { name: string; goalId: string; isMIT: boolean; time: string }) => {
+        const selectedGoal = coreGoals.find(g => g.id === taskData.goalId);
+        if (!selectedGoal) return;
+
+        const newTask: Task = {
+            id: Date.now().toString(),
+            name: taskData.name,
+            goalId: taskData.goalId,
+            goalName: selectedGoal.name,
+            goalColor: selectedGoal.color,
+            startTime: taskData.time,
+            duration: 60,
+            isMIT: taskData.isMIT,
+        };
+
+        setTasks([...tasks, newTask]);
+        setAddTaskSheetVisible(false);
+    };
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <Text style={styles.backIcon}>←</Text>
-                    </TouchableOpacity>
-                    <View style={styles.headerCenter}>
-                        <Text style={styles.headerTitle}>Focus</Text>
+            <View style={styles.header}>
+                <View style={styles.headerTop}>
+                    <View>
+                        <Text style={styles.title}>Focus</Text>
+                        <Text style={styles.date}>{currentDate}</Text>
                     </View>
-                    <View style={styles.headerSpacer} />
                 </View>
+                <ViewSwitcher currentView={currentView} onViewChange={setCurrentView} />
+            </View>
 
-                {/* Goal Selection */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Goal</Text>
-                    <TouchableOpacity style={styles.dropdown}>
-                        <Text style={styles.dropdownText}>{mockGoal}</Text>
-                        <Text style={styles.dropdownIcon}>▼</Text>
-                    </TouchableOpacity>
-                </View>
+            {currentView === 'day' && (
+                <TimeAxisCalendar
+                    tasks={tasks}
+                    onTaskPress={handleTaskPress}
+                    onTimeSlotPress={handleTimeSlotPress}
+                />
+            )}
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Subgoal / Task</Text>
-                    <TouchableOpacity style={[styles.dropdown, styles.dropdownSecondary]}>
-                        <Text style={styles.dropdownTextSecondary}>{mockSubgoal}</Text>
-                        <Text style={styles.dropdownIcon}>▼</Text>
-                    </TouchableOpacity>
-                </View>
+            {currentView === 'week' && (
+                <WeekCalendar
+                    tasks={tasks}
+                    onTaskPress={handleTaskPress}
+                    onDatePress={(date) => console.log('Date pressed:', date)}
+                />
+            )}
 
-                {/* Honesty Mode Toggle */}
-                <TouchableOpacity
-                    style={styles.honestyModeContainer}
-                    onPress={() => setHonestyMode(!honestyMode)}
-                >
-                    <Text style={styles.honestyModeIcon}>🛡️</Text>
-                    <Text style={styles.honestyModeText}>
-                        Honesty Mode: {honestyMode ? 'ON' : 'OFF'}
-                    </Text>
-                </TouchableOpacity>
+            {currentView === 'month' && (
+                <MonthCalendar
+                    tasks={tasks}
+                    onTaskPress={handleTaskPress}
+                    onDatePress={(date) => console.log('Date pressed:', date)}
+                />
+            )}
 
-                {/* Timer Tabs */}
-                <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        style={[styles.tab, selectedTab === 'stopwatch' && styles.activeTab]}
-                        onPress={() => setSelectedTab('stopwatch')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'stopwatch' && styles.activeTabText]}>
-                            Stopwatch
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tab, selectedTab === 'pomodoro' && styles.activeTab]}
-                        onPress={() => setSelectedTab('pomodoro')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'pomodoro' && styles.activeTabText]}>
-                            Pomodoro
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tab, selectedTab === 'timelapse' && styles.activeTab]}
-                        onPress={() => setSelectedTab('timelapse')}
-                    >
-                        <Text style={[styles.tabText, selectedTab === 'timelapse' && styles.activeTabText]}>
-                            Timelapse
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+            <TimerModeModal
+                visible={timerModalVisible}
+                task={selectedTask}
+                onClose={() => setTimerModalVisible(false)}
+                onSelectMode={handleSelectTimerMode}
+            />
 
-                {/* Timer Display */}
-                <View style={styles.timerContainer}>
-                    <Text style={styles.timerDisplay}>{mockTime}</Text>
-                    <Text style={styles.timerLabel}>HH : MM : SS</Text>
-                </View>
+            <AddTaskSheet
+                visible={addTaskSheetVisible}
+                onClose={() => setAddTaskSheetVisible(false)}
+                onSave={handleSaveTask}
+                goals={coreGoals}
+                selectedTime={selectedTime}
+            />
 
-                {/* Control Buttons */}
-                <View style={styles.controlsContainer}>
-                    {/* Stop Button */}
-                    <TouchableOpacity style={styles.stopButton}>
-                        <View style={styles.stopIcon} />
-                    </TouchableOpacity>
-
-                    {/* Pause/Play Button */}
-                    <TouchableOpacity
-                        style={styles.primaryButton}
-                        onPress={() => setIsRunning(!isRunning)}
-                    >
-                        <Text style={styles.primaryButtonIcon}>
-                            {isRunning ? '❚❚' : '▶'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </ScrollView>
+            {activeSession && (
+                <TimerView
+                    task={activeSession.task}
+                    mode={activeSession.mode}
+                    onClose={() => setActiveSession(null)}
+                    onComplete={handleTimerComplete}
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -121,185 +196,28 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: Colors.background,
     },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingHorizontal: Spacing.xl,
-        paddingBottom: Spacing.xl,
-        alignItems: 'center',
-    },
     header: {
-        width: '100%',
+        paddingHorizontal: Spacing.xl,
+        paddingTop: Spacing.lg,
+        paddingBottom: Spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border.default,
+        gap: Spacing.md,
+    },
+    headerTop: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: Spacing.xxl,
-        marginTop: Spacing.lg,
+        alignItems: 'center',
     },
-    backButton: {
-        padding: Spacing.sm,
-        marginLeft: -Spacing.sm,
+    title: {
+        fontSize: Typography.h1.fontSize,
+        fontWeight: Typography.h1.fontWeight,
+        color: Colors.text.primary,
+        lineHeight: Typography.h1.lineHeight,
+        marginBottom: 4,
     },
-    backIcon: {
-        fontSize: 24,
+    date: {
+        fontSize: Typography.caption.fontSize,
         color: Colors.text.secondary,
-    },
-    headerCenter: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: Typography.h2.fontSize,
-        fontWeight: Typography.h2.fontWeight,
-        color: Colors.text.primary,
-    },
-    headerSpacer: {
-        width: 32,
-    },
-    section: {
-        width: '100%',
-        marginBottom: Spacing.md,
-    },
-    sectionLabel: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-        marginBottom: Spacing.sm,
-    },
-    dropdown: {
-        width: '100%',
-        height: 48,
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: Spacing.lg,
-    },
-    dropdownSecondary: {
-        backgroundColor: Colors.background,
-        height: 40,
-    },
-    dropdownText: {
-        fontSize: Typography.body.fontSize,
-        fontWeight: '600',
-        color: Colors.text.primary,
-    },
-    dropdownTextSecondary: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.primary,
-    },
-    dropdownIcon: {
-        fontSize: 12,
-        color: Colors.text.tertiary,
-    },
-    honestyModeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.primaryLight,
-        paddingHorizontal: Spacing.lg,
-        paddingVertical: Spacing.sm,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: `${Colors.primary}20`,
-        marginTop: Spacing.lg,
-        marginBottom: Spacing.xxl,
-    },
-    honestyModeIcon: {
-        fontSize: 20,
-        marginRight: Spacing.sm,
-    },
-    honestyModeText: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.primary,
-    },
-    tabContainer: {
-        flexDirection: 'row',
-        backgroundColor: Colors.border.default,
-        borderRadius: BorderRadius.sm,
-        padding: 4,
-        width: '100%',
-        marginBottom: Spacing.xxl,
-    },
-    tab: {
-        flex: 1,
-        paddingVertical: 6,
-        alignItems: 'center',
-        borderRadius: BorderRadius.sm - 2,
-    },
-    activeTab: {
-        backgroundColor: Colors.surface,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    tabText: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-    },
-    activeTabText: {
-        color: Colors.text.primary,
-    },
-    timerContainer: {
-        alignItems: 'center',
-        marginBottom: Spacing.xxl * 2,
-    },
-    timerDisplay: {
-        fontSize: 72,
-        fontWeight: '600',
-        color: Colors.text.primary,
-        letterSpacing: -2,
-        fontVariant: ['tabular-nums'],
-    },
-    timerLabel: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.tertiary,
-        marginTop: Spacing.sm,
-        fontVariant: ['tabular-nums'],
-    },
-    controlsContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.xxl,
-    },
-    stopButton: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#FEE2E2',
-        borderWidth: 2,
-        borderColor: '#FEE2E2',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    stopIcon: {
-        width: 24,
-        height: 24,
-        backgroundColor: Colors.error,
-        borderRadius: 4,
-    },
-    primaryButton: {
-        width: 96,
-        height: 96,
-        borderRadius: 48,
-        backgroundColor: Colors.warning,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 8,
-    },
-    primaryButtonIcon: {
-        fontSize: 40,
-        color: Colors.surface,
     },
 });
