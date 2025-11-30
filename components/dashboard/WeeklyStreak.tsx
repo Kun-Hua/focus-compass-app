@@ -3,18 +3,18 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface WeeklyStreakProps {
-    streakWeeks: number;
+    streak: number;
     onTrack: boolean;
 }
 
-export default function WeeklyStreak({ streakWeeks, onTrack }: WeeklyStreakProps) {
+export default function WeeklyStreak({ streak, onTrack }: WeeklyStreakProps) {
     return (
         <View style={styles.container}>
             <View style={styles.iconContainer}>
                 <Text style={styles.icon}>🔥</Text>
             </View>
-            <View style={styles.textContainer}>
-                <Text style={styles.title}>{streakWeeks} Week Streak</Text>
+            <View style={styles.content}>
+                <Text style={styles.streakNumber}>{streak} days</Text>
                 <Text style={[styles.status, onTrack ? styles.onTrack : styles.atRisk]}>
                     {onTrack ? 'On Track' : 'At Risk'}
                 </Text>
@@ -28,37 +28,38 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.md,
+        backgroundColor: Colors.surface,
+        padding: Spacing.lg,
+        borderRadius: 12,
         marginBottom: Spacing.lg,
-        paddingHorizontal: 4,
     },
     iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFF7ED', // Orange 50
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: Colors.warning + '20',
         justifyContent: 'center',
         alignItems: 'center',
     },
     icon: {
-        fontSize: 20,
+        fontSize: 24,
     },
-    textContainer: {
+    content: {
         flex: 1,
     },
-    title: {
-        fontSize: 18,
-        fontWeight: '600',
+    streakNumber: {
+        fontSize: Typography.h2.fontSize,
+        fontWeight: '700',
         color: Colors.text.primary,
-        marginBottom: 4,
     },
     status: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: Typography.small.fontSize,
         fontWeight: '600',
     },
     onTrack: {
         color: Colors.success,
     },
     atRisk: {
-        color: Colors.warning,
+        color: Colors.error,
     },
 });

@@ -1,11 +1,32 @@
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Card from '@/components/ui/Card';
+import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
-    const [language, setLanguage] = useState<'en' | 'zh'>('en');
-    const [dailyReminder, setDailyReminder] = useState(true);
+    const { user, signOut } = useAuth();
+    const router = useRouter();
+
+    const handleSignOut = async () => {
+        Alert.alert(
+            'Sign Out',
+            'Are you sure you want to sign out?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await signOut();
+                        router.replace('/login');
+                    },
+                },
+            ]
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -17,89 +38,63 @@ export default function SettingsScreen() {
                 {/* Header */}
                 <Text style={styles.title}>Settings</Text>
 
-                {/* Profile Section */}
-                <View style={styles.profileSection}>
-                    <TouchableOpacity style={styles.avatarContainer}>
-                        <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>F</Text>
-                        </View>
-                        <View style={styles.avatarOverlay}>
-                            <Text style={styles.avatarOverlayIcon}>📷</Text>
-                        </View>
-                    </TouchableOpacity>
-
-                    <View style={styles.profileFields}>
-                        <View style={styles.field}>
-                            <Text style={styles.fieldLabel}>Nickname</Text>
-                            <View style={styles.fieldInput}>
-                                <TextInput
-                                    style={styles.input}
-                                    value="Felix"
-                                    placeholder="Enter nickname"
-                                    placeholderTextColor={Colors.text.tertiary}
-                                />
-                                <Text style={styles.editIcon}>✏️</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.field}>
-                            <Text style={styles.fieldLabel}>Email</Text>
-                            <Text style={styles.fieldValue}>felix@example.com</Text>
-                        </View>
+                {/* User Info */}
+                <Card style={styles.userCard}>
+                    <View style={styles.avatarContainer}>
+                        <Text style={styles.avatarText}>
+                            {user?.email?.[0].toUpperCase() || 'U'}
+                        </Text>
                     </View>
+                    <View style={styles.userInfo}>
+                        <Text style={styles.userName}>
+                            {user?.user_metadata?.full_name || 'User'}
+                        </Text>
+                        <Text style={styles.userEmail}>{user?.email || 'No email'}</Text>
+                    </View>
+                </Card>
+
+                {/* Account Settings */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Account</Text>
+                    <Card style={styles.settingsCard}>
+                        <TouchableOpacity style={styles.settingItem}>
+                            <Text style={styles.settingLabel}>Edit Profile</Text>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.settingItem, styles.settingItemNoBorder]}>
+                            <Text style={styles.settingLabel}>Change Password</Text>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                    </Card>
                 </View>
 
-                {/* Preferences Group */}
+                {/* Preferences */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>PREFERENCES</Text>
-                    <View style={styles.settingsGroup}>
-                        {/* Language */}
-                        <View style={styles.settingItem}>
-                            <Text style={styles.settingLabel}>Language / 語言</Text>
-                            <View style={styles.segmentedControl}>
-                                <TouchableOpacity
-                                    style={[styles.segment, language === 'en' && styles.segmentActive]}
-                                    onPress={() => setLanguage('en')}
-                                >
-                                    <Text style={[styles.segmentText, language === 'en' && styles.segmentTextActive]}>
-                                        English
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.segment, language === 'zh' && styles.segmentActive]}
-                                    onPress={() => setLanguage('zh')}
-                                >
-                                    <Text style={[styles.segmentText, language === 'zh' && styles.segmentTextActive]}>
-                                        繁體中文
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {/* Notifications */}
-                        <View style={[styles.settingItem, styles.settingItemNoBorder]}>
-                            <View style={styles.settingLeft}>
-                                <Text style={styles.settingLabel}>Daily Reminder</Text>
-                                <Text style={styles.settingSubtext}>09:00 AM daily plan</Text>
-                            </View>
-                            <Switch
-                                value={dailyReminder}
-                                onValueChange={setDailyReminder}
-                                trackColor={{ false: Colors.border.default, true: Colors.primary }}
-                                thumbColor={Colors.surface}
-                            />
-                        </View>
-                    </View>
+                    <Text style={styles.sectionTitle}>Preferences</Text>
+                    <Card style={styles.settingsCard}>
+                        <TouchableOpacity style={styles.settingItem}>
+                            <Text style={styles.settingLabel}>Notifications</Text>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.settingItem}>
+                            <Text style={styles.settingLabel}>Focus Modes</Text>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.settingItem, styles.settingItemNoBorder]}>
+                            <Text style={styles.settingLabel}>Theme</Text>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
+                    </Card>
                 </View>
 
-                {/* About Group */}
+                {/* About */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>ABOUT</Text>
-                    <View style={styles.settingsGroup}>
-                        <View style={styles.settingItem}>
-                            <Text style={styles.settingLabel}>Version</Text>
-                            <Text style={styles.settingValue}>1.0.0</Text>
-                        </View>
+                    <Text style={styles.sectionTitle}>About</Text>
+                    <Card style={styles.settingsCard}>
+                        <TouchableOpacity style={styles.settingItem}>
+                            <Text style={styles.settingLabel}>Help & Support</Text>
+                            <Text style={styles.chevron}>›</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity style={styles.settingItem}>
                             <Text style={styles.settingLabel}>Terms of Service</Text>
                             <Text style={styles.chevron}>›</Text>
@@ -108,15 +103,16 @@ export default function SettingsScreen() {
                             <Text style={styles.settingLabel}>Privacy Policy</Text>
                             <Text style={styles.chevron}>›</Text>
                         </TouchableOpacity>
-                    </View>
+                    </Card>
                 </View>
 
-                {/* Log Out Button */}
-                <TouchableOpacity style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Log Out</Text>
+                {/* Sign Out */}
+                <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                    <Text style={styles.signOutText}>Sign Out</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.userId}>User ID: 88349201</Text>
+                {/* Version */}
+                <Text style={styles.version}>Version 1.0.0</Text>
             </ScrollView>
         </SafeAreaView>
     );
@@ -131,196 +127,101 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        paddingBottom: Spacing.xxl,
+        paddingHorizontal: Spacing.xl,
+        paddingBottom: Spacing.xl,
     },
     title: {
         fontSize: Typography.h1.fontSize,
         fontWeight: Typography.h1.fontWeight,
         color: Colors.text.primary,
         lineHeight: Typography.h1.lineHeight,
-        paddingHorizontal: Spacing.xl,
         marginBottom: Spacing.xl,
         marginTop: Spacing.lg,
     },
-    profileSection: {
-        backgroundColor: Colors.surface,
-        paddingVertical: Spacing.xl,
-        paddingHorizontal: Spacing.xl,
-        marginBottom: Spacing.xxl,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: Colors.border.default,
+    userCard: {
+        flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: Spacing.xl,
+        padding: Spacing.lg,
     },
     avatarContainer: {
-        position: 'relative',
-        marginBottom: Spacing.lg,
-    },
-    avatar: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: Colors.border.default,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: Colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: Spacing.md,
     },
     avatarText: {
-        fontSize: 32,
+        fontSize: 24,
+        fontWeight: '700',
+        color: Colors.surface,
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userName: {
+        fontSize: Typography.h3.fontSize,
         fontWeight: '600',
+        color: Colors.text.primary,
+        marginBottom: 4,
+    },
+    userEmail: {
+        fontSize: Typography.small.fontSize,
         color: Colors.text.secondary,
     },
-    avatarOverlay: {
-        position: 'absolute',
-        inset: 0,
-        borderRadius: 40,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        opacity: 0,
+    section: {
+        marginBottom: Spacing.xl,
     },
-    avatarOverlayIcon: {
-        fontSize: 24,
-    },
-    profileFields: {
-        width: '100%',
-        maxWidth: 320,
-        gap: Spacing.lg,
-    },
-    field: {
-        gap: 4,
-    },
-    fieldLabel: {
-        fontSize: Typography.small.fontSize,
+    sectionTitle: {
+        fontSize: Typography.caption.fontSize,
         fontWeight: '600',
         color: Colors.text.secondary,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-    },
-    fieldInput: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.default,
-        paddingVertical: 4,
-    },
-    input: {
-        flex: 1,
-        fontSize: Typography.body.fontSize,
-        fontWeight: '600',
-        color: Colors.text.primary,
-        padding: 0,
-    },
-    editIcon: {
-        fontSize: 16,
-    },
-    fieldValue: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.tertiary,
-    },
-    section: {
-        marginBottom: Spacing.xxl,
-        paddingHorizontal: Spacing.xl,
-    },
-    sectionTitle: {
-        fontSize: Typography.small.fontSize,
-        fontWeight: '600',
-        color: Colors.text.tertiary,
-        letterSpacing: 1,
         marginBottom: Spacing.sm,
     },
-    settingsGroup: {
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
+    settingsCard: {
+        padding: 0,
         overflow: 'hidden',
     },
     settingItem: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: Spacing.lg,
-        paddingHorizontal: Spacing.xl,
+        padding: Spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border.default,
     },
     settingItemNoBorder: {
         borderBottomWidth: 0,
     },
-    settingLeft: {
-        flex: 1,
-    },
     settingLabel: {
         fontSize: Typography.body.fontSize,
-        fontWeight: '600',
         color: Colors.text.primary,
-    },
-    settingSubtext: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.secondary,
-        marginTop: 2,
-    },
-    settingValue: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.secondary,
     },
     chevron: {
         fontSize: 20,
         color: Colors.text.tertiary,
     },
-    segmentedControl: {
-        flexDirection: 'row',
-        backgroundColor: Colors.background,
-        padding: 2,
-        borderRadius: BorderRadius.sm,
-        gap: 2,
-    },
-    segment: {
-        flex: 1,
-        paddingVertical: 6,
-        paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.sm - 2,
+    signOutButton: {
+        backgroundColor: Colors.error,
+        borderRadius: 12,
+        padding: Spacing.lg,
         alignItems: 'center',
+        marginTop: Spacing.lg,
+        marginBottom: Spacing.md,
     },
-    segmentActive: {
-        backgroundColor: Colors.surface,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    segmentText: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-    },
-    segmentTextActive: {
-        color: Colors.text.primary,
-    },
-    logoutButton: {
-        marginHorizontal: Spacing.xl,
-        paddingVertical: Spacing.lg,
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    logoutText: {
+    signOutText: {
         fontSize: Typography.body.fontSize,
         fontWeight: '600',
-        color: Colors.error,
+        color: Colors.surface,
     },
-    userId: {
+    version: {
         fontSize: Typography.small.fontSize,
         color: Colors.text.tertiary,
         textAlign: 'center',
-        marginTop: Spacing.lg,
+        marginTop: Spacing.md,
     },
 });

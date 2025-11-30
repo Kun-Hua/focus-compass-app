@@ -6,9 +6,9 @@ import TimerView from '@/components/focus/TimerView';
 import ViewSwitcher from '@/components/focus/ViewSwitcher';
 import WeekCalendar from '@/components/focus/WeekCalendar';
 import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
-import { useAuth } from '@/core/context/AuthContext';
-import { focusApi } from '@/core/services/focusApi';
-import { goalsApi } from '@/core/services/goalsApi';
+import { useAuth } from '@/contexts/AuthContext';
+import { focusApi } from '@/services/focusApi';
+import { goalsApi } from '@/services/goalsApi';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -66,7 +66,7 @@ export default function FocusScreen() {
                 honesty_mode: true, // Default to true for now
                 interruption_count: 0,
             });
-            // Alert.alert('專注完成', '紀錄已儲存！'); // Optional feedback
+            // Alert.alert('專注完�?', '紀?�已?��?�?); // Optional feedback
         } catch (error) {
             console.error('Failed to save session:', error);
         }
@@ -76,9 +76,9 @@ export default function FocusScreen() {
     const [tasks, setTasks] = useState<Task[]>([
         {
             id: '1',
-            name: '補習',
+            name: '補�?',
             goalId: '1',
-            goalName: '學測頂標',
+            goalName: '學測?��?',
             goalColor: '#3B82F6',
             startTime: '09:00',
             duration: 120,

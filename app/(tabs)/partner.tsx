@@ -6,18 +6,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PartnerScreen() {
     // Mock data
-    const partners = [
-        {
-            id: '1',
-            name: 'Alice',
-            isOnline: true,
-            metrics: {
-                netFocus: { partner: 32, you: 28 },
-                commitment: { partner: 90, you: 85 },
-                honesty: { partner: 98, you: 95 },
-            },
-            trend: 12,
-        },
+    const partner = {
+        name: 'Sarah',
+        status: 'Focusing',
+        lastActive: 'Now',
+        streak: 12,
+        todayMinutes: 145,
+        trend: 15,
+        avatar: 'S',
+    };
+
+    const metrics = [
+        { label: 'Focus Time', you: '2h 30m', partner: '2h 25m', diff: '+5m', winning: true },
+        { label: 'Honesty', you: '95%', partner: '98%', diff: '-3%', winning: false },
+        { label: 'Streak', you: '4 days', partner: '12 days', diff: '-8', winning: false },
     ];
 
     return (
@@ -28,91 +30,106 @@ export default function PartnerScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.title}>Partner</Text>
-                    <TouchableOpacity style={styles.settingsButton}>
-                        <Text style={styles.settingsIcon}>⚙️</Text>
-                    </TouchableOpacity>
-                </View>
+                <Text style={styles.title}>Partner</Text>
 
-                {/* Partner Card */}
-                {partners.map((partner) => (
-                    <Card key={partner.id} style={styles.partnerCard}>
-                        {/* Header */}
+                {/* Partner Status Card */}
+                <View style={styles.partnerCard}>
+                    <View style={styles.partnerCardGradient}>
                         <View style={styles.partnerHeader}>
-                            <View style={styles.partnerAvatar}>
-                                <Text style={styles.partnerAvatarText}>{partner.name[0]}</Text>
-                                <View style={styles.onlineIndicator} />
+                            <View style={styles.avatarContainer}>
+                                <Text style={styles.avatarText}>{partner.avatar}</Text>
+                                <View style={styles.statusBadge} />
                             </View>
                             <View style={styles.partnerInfo}>
                                 <Text style={styles.partnerName}>{partner.name}</Text>
-                                <Text style={styles.partnerStatus}>Online now</Text>
-                            </View>
-                            <View style={styles.trendContainer}>
-                                <Text style={styles.trendIcon}>↗</Text>
-                                <Text style={styles.trendText}>+{partner.trend}%</Text>
-                            </View>
-                        </View>
-
-                        {/* Metrics Comparison */}
-                        <View style={styles.metricsRow}>
-                            <View style={styles.metric}>
-                                <Text style={styles.metricLabel}>Net Focus</Text>
-                                <Text style={styles.metricValue}>{partner.metrics.netFocus.partner}h</Text>
-                                <Text style={styles.metricVs}>vs {partner.metrics.netFocus.you}h</Text>
-                            </View>
-                            <View style={[styles.metric, styles.metricDivider]}>
-                                <Text style={styles.metricLabel}>Commitment</Text>
-                                <Text style={styles.metricValue}>{partner.metrics.commitment.partner}%</Text>
-                                <Text style={styles.metricVs}>vs {partner.metrics.commitment.you}%</Text>
-                            </View>
-                            <View style={styles.metric}>
-                                <Text style={styles.metricLabel}>Honesty</Text>
-                                <Text style={styles.metricValue}>{partner.metrics.honesty.partner}%</Text>
-                                <Text style={styles.metricVs}>vs {partner.metrics.honesty.you}%</Text>
-                            </View>
-                        </View>
-
-                        {/* Visual Chart */}
-                        <View style={styles.chartSection}>
-                            <Text style={styles.chartTitle}>WEEKLY FOCUS HOURS</Text>
-                            <View style={styles.chartBars}>
-                                <View style={styles.chartBar}>
-                                    <Text style={styles.chartBarValue}>28h</Text>
-                                    <View style={styles.chartBarTrack}>
-                                        <View style={[styles.chartBarFill, styles.chartBarFillYou, { height: '70%' }]} />
-                                    </View>
-                                    <Text style={styles.chartBarLabel}>You</Text>
-                                </View>
-                                <View style={styles.chartBar}>
-                                    <Text style={styles.chartBarValue}>32h</Text>
-                                    <View style={styles.chartBarTrack}>
-                                        <View style={[styles.chartBarFill, styles.chartBarFillPartner, { height: '85%' }]} />
-                                    </View>
-                                    <Text style={styles.chartBarLabel}>{partner.name}</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.insightBox}>
-                                <Text style={styles.insightText}>
-                                    <Text style={styles.insightBold}>Insight:</Text> Alice was interrupted mostly by "Fatigue", while you were interrupted by "Phone".
+                                <Text style={styles.partnerStatus}>
+                                    {partner.status} • {partner.lastActive}
                                 </Text>
                             </View>
+                            <View style={styles.trendContainer}>
+                                <Text style={styles.trendIcon}>🔥</Text>
+                                <Text style={styles.trendText}>{partner.streak} days</Text>
+                            </View>
                         </View>
 
-                        {/* Action Button */}
-                        <TouchableOpacity style={styles.nudgeButton}>
-                            <Text style={styles.nudgeIcon}>👋</Text>
-                            <Text style={styles.nudgeText}>Nudge {partner.name}</Text>
-                        </TouchableOpacity>
-                    </Card>
-                ))}
+                        <View style={styles.divider} />
 
-                {/* FAB Invite Button */}
-                <TouchableOpacity style={styles.fab}>
-                    <Text style={styles.fabIcon}>+</Text>
-                </TouchableOpacity>
+                        <View style={styles.statsRow}>
+                            <View style={styles.statItem}>
+                                <Text style={styles.statValue}>{partner.todayMinutes}m</Text>
+                                <Text style={styles.statLabel}>Today</Text>
+                            </View>
+                            <View style={styles.statItem}>
+                                <Text style={styles.statValue}>+{partner.trend}%</Text>
+                                <Text style={styles.statLabel}>Trend</Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Comparison Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Comparison</Text>
+                        <Text style={styles.sectionSubtitle}>Today</Text>
+                    </View>
+                    <Card style={styles.comparisonCard}>
+                        <View style={styles.tableHeader}>
+                            <Text style={styles.colMetric}>Metric</Text>
+                            <Text style={styles.colValue}>You</Text>
+                            <Text style={styles.colValue}>{partner.name}</Text>
+                            <Text style={styles.colDiff}>Diff</Text>
+                        </View>
+                        {metrics.map((metric, index) => (
+                            <View
+                                key={metric.label}
+                                style={[
+                                    styles.tableRow,
+                                    index < metrics.length - 1 && styles.tableRowBorder,
+                                ]}
+                            >
+                                <Text style={styles.colMetric}>{metric.label}</Text>
+                                <Text style={styles.colValue}>{metric.you}</Text>
+                                <Text style={styles.colValue}>{metric.partner}</Text>
+                                <Text style={[styles.colDiff, metric.winning ? styles.textSuccess : styles.textError]}>
+                                    {metric.diff}
+                                </Text>
+                            </View>
+                        ))}
+                    </Card>
+                </View>
+
+                {/* Activity Feed */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Activity</Text>
+                    <Card style={styles.activityCard}>
+                        <View style={styles.activityItem}>
+                            <Text style={styles.activityIcon}>🎯</Text>
+                            <View style={styles.activityContent}>
+                                <Text style={styles.activityText}>
+                                    <Text style={styles.bold}>{partner.name}</Text> completed a 45m session
+                                </Text>
+                                <Text style={styles.activityTime}>2 hours ago</Text>
+                            </View>
+                        </View>
+                        <View style={styles.activityDivider} />
+                        <View style={styles.activityItem}>
+                            <Text style={styles.activityIcon}>🏆</Text>
+                            <View style={styles.activityContent}>
+                                <Text style={styles.activityText}>
+                                    <Text style={styles.bold}>You</Text> reached a 4 day streak!
+                                </Text>
+                                <Text style={styles.activityTime}>5 hours ago</Text>
+                            </View>
+                        </View>
+                    </Card>
+                </View>
             </ScrollView>
+
+            {/* FAB */}
+            <TouchableOpacity style={styles.fab}>
+                <Text style={styles.fabIcon}>👋</Text>
+            </TouchableOpacity>
         </SafeAreaView>
     );
 }
@@ -127,61 +144,59 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: Spacing.xl,
-        paddingBottom: 100,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.xl,
-        marginTop: Spacing.lg,
+        paddingBottom: Spacing.xl + 80, // Extra padding for FAB
     },
     title: {
         fontSize: Typography.h1.fontSize,
         fontWeight: Typography.h1.fontWeight,
         color: Colors.text.primary,
         lineHeight: Typography.h1.lineHeight,
-    },
-    settingsButton: {
-        padding: Spacing.sm,
-    },
-    settingsIcon: {
-        fontSize: 24,
+        marginBottom: Spacing.xl,
+        marginTop: Spacing.lg,
     },
     partnerCard: {
-        padding: 0,
-        overflow: 'hidden',
+        marginBottom: Spacing.xl,
+    },
+    partnerCardGradient: {
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.xl,
+        borderWidth: 2,
+        borderColor: Colors.primary,
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
     },
     partnerHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.default,
-        gap: Spacing.md,
+        marginBottom: Spacing.lg,
     },
-    partnerAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: Colors.border.default,
+    avatarContainer: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: Colors.primaryLight,
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: Spacing.md,
         position: 'relative',
     },
-    partnerAvatarText: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: Colors.text.secondary,
+    avatarText: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: Colors.primary,
     },
-    onlineIndicator: {
+    statusBadge: {
         position: 'absolute',
-        bottom: 0,
-        right: 0,
+        bottom: 2,
+        right: 2,
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: Colors.success,
+        backgroundColor: '#10B981', // Green
         borderWidth: 2,
         borderColor: Colors.surface,
     },
@@ -189,146 +204,145 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     partnerName: {
-        fontSize: 18,
-        fontWeight: '600',
+        fontSize: Typography.h3.fontSize,
+        fontWeight: '700',
         color: Colors.text.primary,
-        marginBottom: 2,
     },
     partnerStatus: {
-        fontSize: Typography.small.fontSize,
+        fontSize: Typography.caption.fontSize,
+        color: '#10B981',
         fontWeight: '600',
-        color: Colors.success,
     },
     trendContainer: {
-        flexDirection: 'column',
         alignItems: 'flex-end',
     },
     trendIcon: {
         fontSize: 20,
-        color: Colors.success,
+        marginBottom: 2,
     },
     trendText: {
         fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.success,
+        fontWeight: '700',
+        color: Colors.text.primary,
     },
-    metricsRow: {
+    divider: {
+        height: 1,
+        backgroundColor: Colors.border.default,
+        marginVertical: Spacing.md,
+    },
+    statsRow: {
         flexDirection: 'row',
-        padding: Spacing.lg,
+        justifyContent: 'space-around',
+    },
+    statItem: {
+        alignItems: 'center',
+    },
+    statValue: {
+        fontSize: Typography.h3.fontSize,
+        fontWeight: '700',
+        color: Colors.text.primary,
+    },
+    statLabel: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.text.secondary,
+    },
+    section: {
+        marginBottom: Spacing.xl,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+    },
+    sectionTitle: {
+        fontSize: Typography.body.fontSize,
+        fontWeight: '600',
+        color: Colors.text.primary,
+    },
+    sectionSubtitle: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.text.tertiary,
+    },
+    comparisonCard: {
+        padding: 0,
+        overflow: 'hidden',
+    },
+    tableHeader: {
+        flexDirection: 'row',
+        padding: Spacing.md,
+        backgroundColor: Colors.background,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border.default,
     },
-    metric: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    metricDivider: {
-        borderLeftWidth: 1,
-        borderRightWidth: 1,
-        borderColor: Colors.border.default,
-    },
-    metricLabel: {
-        fontSize: Typography.small.fontSize,
-        color: Colors.text.tertiary,
-        marginBottom: 4,
-    },
-    metricValue: {
-        fontSize: Typography.body.fontSize,
-        fontWeight: '700',
-        color: Colors.text.primary,
-    },
-    metricVs: {
-        fontSize: Typography.small.fontSize,
-        color: Colors.text.tertiary,
-    },
-    chartSection: {
-        padding: Spacing.xl,
-    },
-    chartTitle: {
-        fontSize: Typography.small.fontSize,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-        letterSpacing: 1,
-        marginBottom: Spacing.lg,
-    },
-    chartBars: {
+    tableRow: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        gap: Spacing.xxl,
-        height: 128,
-        marginBottom: Spacing.lg,
-    },
-    chartBar: {
-        alignItems: 'center',
-        gap: Spacing.sm,
-        width: 64,
-    },
-    chartBarValue: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '700',
-        color: Colors.text.primary,
-    },
-    chartBarTrack: {
-        flex: 1,
-        width: '100%',
-        backgroundColor: Colors.border.default,
-        borderRadius: 4,
-        justifyContent: 'flex-end',
-        overflow: 'hidden',
-    },
-    chartBarFill: {
-        width: '100%',
-        borderRadius: 4,
-    },
-    chartBarFillYou: {
-        backgroundColor: Colors.primary,
-    },
-    chartBarFillPartner: {
-        backgroundColor: Colors.text.primary,
-    },
-    chartBarLabel: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-    },
-    insightBox: {
-        backgroundColor: Colors.background,
         padding: Spacing.md,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
+        alignItems: 'center',
     },
-    insightText: {
-        fontSize: Typography.caption.fontSize,
+    tableRowBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border.default,
+    },
+    colMetric: {
+        flex: 2,
+        fontSize: Typography.small.fontSize,
         color: Colors.text.secondary,
+        fontWeight: '600',
+    },
+    colValue: {
+        flex: 1.5,
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.primary,
+        textAlign: 'center',
+    },
+    colDiff: {
+        flex: 1,
+        fontSize: Typography.small.fontSize,
+        textAlign: 'right',
+        fontWeight: '600',
+    },
+    textSuccess: {
+        color: '#10B981',
+    },
+    textError: {
+        color: Colors.error,
+    },
+    activityCard: {
+        padding: Spacing.md,
+    },
+    activityItem: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+    },
+    activityIcon: {
+        fontSize: 20,
+        marginTop: 2,
+    },
+    activityContent: {
+        flex: 1,
+    },
+    activityText: {
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.primary,
         lineHeight: 20,
     },
-    insightBold: {
-        fontWeight: '700',
-        color: Colors.text.primary,
-    },
-    nudgeButton: {
-        margin: Spacing.lg,
-        paddingVertical: Spacing.sm + 2,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    nudgeIcon: {
-        fontSize: 18,
-    },
-    nudgeText: {
-        fontSize: Typography.caption.fontSize,
+    bold: {
         fontWeight: '600',
-        color: Colors.text.primary,
+    },
+    activityTime: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.text.tertiary,
+        marginTop: 4,
+    },
+    activityDivider: {
+        height: 1,
+        backgroundColor: Colors.border.default,
+        marginVertical: Spacing.md,
     },
     fab: {
         position: 'absolute',
-        bottom: Spacing.xxl,
+        bottom: Spacing.xl,
         right: Spacing.xl,
         width: 56,
         height: 56,
@@ -336,15 +350,14 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
+        shadowColor: Colors.primary,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 8,
     },
     fabIcon: {
         fontSize: 24,
         color: Colors.surface,
-        fontWeight: '600',
     },
 });

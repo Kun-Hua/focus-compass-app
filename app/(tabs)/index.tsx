@@ -1,16 +1,15 @@
 import AddGoalModal from '@/components/vision/AddGoalModal';
+import AvoidanceGoalsList from '@/components/vision/AvoidanceGoalsList';
 import CoreGoalsList from '@/components/vision/CoreGoalsList';
-import GoalBreakdown, { GoalPlan } from '@/components/vision/GoalBreakdown';
-import GoalSelector from '@/components/vision/GoalSelector';
 import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
-import { useAuth } from '@/core/context/AuthContext';
-import { goalPlansApi } from '@/core/services/goalPlansApi';
-import { goalsApi } from '@/core/services/goalsApi';
+import { useAuth } from '@/contexts/AuthContext';
+import { goalPlansApi } from '@/services/goalPlansApi';
+import { goalsApi } from '@/services/goalsApi';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// UI 用的 Goal 類型
+// Define interfaces locally if not imported
 interface UIGoal {
     id: string;
     name: string;
@@ -18,69 +17,108 @@ interface UIGoal {
     status: 'core' | 'avoid';
 }
 
+interface GoalPlan {
+    goalId: string;
+    annualGoal: string;
+    quarterlyGoal: string;
+    monthlyGoal: string;
+    weeklyGoal: string;
+    weeklyCommitmentHours: number;
+}
+
 export default function VisionScreen() {
     const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [addModalVisible, setAddModalVisible] = useState(false);
-
     const [coreGoals, setCoreGoals] = useState<UIGoal[]>([]);
     const [avoidGoals, setAvoidGoals] = useState<UIGoal[]>([]);
-    const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
     const [goalBreakdowns, setGoalBreakdowns] = useState<Map<string, GoalPlan>>(new Map());
-
-    // 載入資料
-    useEffect(() => {
-        if (user) {
-            loadData();
-        }
-    }, [user]);
-
-    // 自動選擇第一個 Core Goal
-    useEffect(() => {
-        if (coreGoals.length > 0 && !selectedGoalId) {
-            setSelectedGoalId(coreGoals[0].id);
-        }
-    }, [coreGoals, selectedGoalId]);
+    const [isAddModalVisible, setAddModalVisible] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const loadData = async () => {
         if (!user) return;
 
+        setLoading(true);
+        setError(null);
+
         try {
+            const [core, avoid, plans] = await Promise.all([
+                goalsApi.getCoreGoals(user.id),
+                goalsApi.getAvoidanceGoals(user.id),
+                goalPlansApi.getAll(user.id),
+            ]);
+
+            const coreUiGoals: UIGoal[] = core.map(g => ({
+                id: g.goal_id,
+                name: g.goal_name,
+                description: g.description,
+                status: 'core',
+            }));
+
+            const avoidUiGoals: UIGoal[] = avoid.map(g => ({
+                id: g.goal_id,
+                name: g.goal_name,
+                description: g.description,
+                status: 'avoid',
+            }));
+
+            const breakdownMap = new Map<string, GoalPlan>();
+            plans.forEach(p => {
+                breakdownMap.set(p.goal_id, {
+                    goalId: p.goal_id,
+                    annualGoal: p.annual_goal || '',
+                    quarterlyGoal: p.quarterly_goal || '',
+                    monthlyGoal: p.monthly_goal || '',
+                    weeklyGoal: p.weekly_goal || '',
+                    weeklyCommitmentHours: p.weekly_commitment_hours || 0,
+                });
+            });
+
+            setCoreGoals(coreUiGoals);
+            setAvoidGoals(avoidUiGoals);
+            setGoalBreakdowns(breakdownMap);
+
         } catch (err: any) {
             console.error('Failed to load data:', err);
-            setError(err.message || '載入失敗，請稍後再試');
+            setError(err.message || 'Failed to load data, please try again later');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleAddGoal = async (name: string, category: 'Core' | 'Avoidance') => {
+    useEffect(() => {
+        loadData();
+    }, [user]);
+
+    const handleAddGoal = async (goal: { name: string; description?: string; type: 'core' | 'avoid' }) => {
         if (!user) return;
         try {
-            await goalsApi.create(user.id, {
-                goal_name: name,
-                goal_category: category,
+            await goalsApi.create({
+                user_id: user.id,
+                goal_name: goal.name,
+                description: goal.description,
+                is_core: goal.type === 'core',
             });
-            // Reload data to show new goal
-            loadData();
+            loadData(); // Reload data
         } catch (err: any) {
             console.error('Failed to create goal:', err);
-            Alert.alert('新增失敗', err.message || '請稍後再試');
+            Alert.alert('Creation Failed', err.message || 'Please try again later');
         }
     };
 
     const handleBreakdownUpdate = async (goalId: string, breakdown: GoalPlan) => {
         if (!user) return;
-
         try {
-            // 立即更新 UI
-            const updated = new Map(goalBreakdowns);
-            updated.set(goalId, breakdown);
-            setGoalBreakdowns(updated);
+            // Optimistic update
+            setGoalBreakdowns(prev => {
+                const newMap = new Map(prev);
+                newMap.set(goalId, breakdown);
+                return newMap;
+            });
 
-            // 儲存到 Supabase
-            await goalPlansApi.upsert(goalId, user.id, {
+            await goalPlansApi.upsert({
+                user_id: user.id,
+                goal_id: goalId,
                 annual_goal: breakdown.annualGoal,
                 quarterly_goal: breakdown.quarterlyGoal,
                 monthly_goal: breakdown.monthlyGoal,
@@ -88,52 +126,16 @@ export default function VisionScreen() {
                 weekly_commitment_hours: breakdown.weeklyCommitmentHours,
             });
         } catch (err: any) {
-            console.error('Failed to save goal plan:', err);
-            Alert.alert('儲存失敗', err.message || '請稍後再試');
+            console.error('Failed to update breakdown:', err);
+            Alert.alert('Update Failed', 'Failed to save changes');
+            loadData(); // Revert on error
         }
     };
 
     const handleGoalPress = (goal: UIGoal) => {
+        // Handle goal press if needed
         console.log('Goal pressed:', goal.name);
-        // TODO: 未來可以開啟編輯 modal
     };
-
-    // Loading 狀態
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.container} edges={['top']}>
-                <View style={styles.centerContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={styles.loadingText}>載入中...</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // Error 狀態
-    if (error) {
-        return (
-            <SafeAreaView style={styles.container} edges={['top']}>
-                <View style={styles.centerContainer}>
-                    <Text style={styles.errorText}>❌ {error}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={loadData}>
-                        <Text style={styles.retryButtonText}>重試</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // 未登入狀態
-    if (!user) {
-        return (
-            <SafeAreaView style={styles.container} edges={['top']}>
-                <View style={styles.centerContainer}>
-                    <Text style={styles.errorText}>請先登入</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -145,54 +147,34 @@ export default function VisionScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.title}>Vision</Text>
-                    <TouchableOpacity
-                        style={styles.addButton}
-                        onPress={() => setAddModalVisible(true)}
-                    >
+                    <TouchableOpacity onPress={() => setAddModalVisible(true)}>
                         <Text style={styles.addButtonIcon}>+</Text>
                     </TouchableOpacity>
                 </View>
 
+                {error && (
+                    <TouchableOpacity onPress={loadData} style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{error} - Tap to retry</Text>
+                    </TouchableOpacity>
+                )}
+
                 {/* Core Goals List */}
                 <CoreGoalsList
                     coreGoals={coreGoals}
+                    goalBreakdowns={goalBreakdowns}
+                    onGoalPress={handleGoalPress}
+                    onBreakdownUpdate={handleBreakdownUpdate}
+                />
+
+                {/* Avoidance Goals List */}
+                <AvoidanceGoalsList
                     avoidGoals={avoidGoals}
                     onGoalPress={handleGoalPress}
                 />
-
-                {/* Goal Breakdown Section */}
-                {coreGoals.length > 0 && (
-                    <View style={styles.breakdownSection}>
-                        <Text style={styles.sectionTitle}>目標拆解</Text>
-                        <Text style={styles.sectionSubtitle}>
-                            將核心目標拆解為年/季/月/週的具體行動計畫
-                        </Text>
-                        <GoalSelector
-                            coreGoals={coreGoals}
-                            selectedGoalId={selectedGoalId}
-                            onSelect={setSelectedGoalId}
-                        />
-                        {selectedGoalId && (
-                            <GoalBreakdown
-                                goal={coreGoals.find((g) => g.id === selectedGoalId)!}
-                                breakdown={goalBreakdowns.get(selectedGoalId)}
-                                onUpdate={handleBreakdownUpdate}
-                            />
-                        )}
-                    </View>
-                )}
-
-                {/* Empty State */}
-                {coreGoals.length === 0 && avoidGoals.length === 0 && (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>還沒有任何目標</Text>
-                        <Text style={styles.emptySubtext}>點擊右上角 + 新增第一個目標</Text>
-                    </View>
-                )}
             </ScrollView>
 
             <AddGoalModal
-                visible={addModalVisible}
+                visible={isAddModalVisible}
                 onClose={() => setAddModalVisible(false)}
                 onAdd={handleAddGoal}
             />
@@ -205,12 +187,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: Colors.background,
     },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: Spacing.xl,
-    },
     scrollView: {
         flex: 1,
     },
@@ -221,7 +197,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         marginBottom: Spacing.xl,
         marginTop: Spacing.lg,
     },
@@ -231,68 +207,19 @@ const styles = StyleSheet.create({
         color: Colors.text.primary,
         lineHeight: Typography.h1.lineHeight,
     },
-    addButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: Colors.text.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
     addButtonIcon: {
-        fontSize: 20,
-        color: Colors.surface,
-        fontWeight: '600',
+        fontSize: 32,
+        color: Colors.primary,
+        fontWeight: '300',
     },
-    breakdownSection: {
-        marginTop: Spacing.xxl,
-        gap: Spacing.md,
-    },
-    sectionTitle: {
-        fontSize: Typography.h2.fontSize,
-        fontWeight: Typography.h2.fontWeight,
-        color: Colors.text.primary,
-    },
-    sectionSubtitle: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.secondary,
-        marginBottom: Spacing.sm,
-    },
-    loadingText: {
-        marginTop: Spacing.md,
-        fontSize: Typography.body.fontSize,
-        color: Colors.text.secondary,
+    errorContainer: {
+        padding: Spacing.md,
+        backgroundColor: Colors.error + '20',
+        borderRadius: 8,
+        marginBottom: Spacing.md,
     },
     errorText: {
-        fontSize: Typography.body.fontSize,
         color: Colors.error,
         textAlign: 'center',
-        marginBottom: Spacing.lg,
-    },
-    retryButton: {
-        paddingVertical: Spacing.md,
-        paddingHorizontal: Spacing.xl,
-        backgroundColor: Colors.primary,
-        borderRadius: 8,
-    },
-    retryButtonText: {
-        fontSize: Typography.body.fontSize,
-        fontWeight: '600',
-        color: Colors.surface,
-    },
-    emptyState: {
-        paddingVertical: Spacing.xxl * 2,
-        alignItems: 'center',
-    },
-    emptyText: {
-        fontSize: Typography.h2.fontSize,
-        fontWeight: '600',
-        color: Colors.text.secondary,
-        marginBottom: Spacing.sm,
-    },
-    emptySubtext: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.tertiary,
     },
 });

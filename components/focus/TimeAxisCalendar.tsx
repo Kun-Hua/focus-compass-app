@@ -1,164 +1,151 @@
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { Colors, Typography } from '@/constants/DesignSystem';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-export interface Task {
+interface Task {
     id: string;
-    name: string;
-    goalId: string;
+    title: string;
     goalName: string;
-    goalColor: string;
-    startTime: string;
-    duration: number;
-    isMIT: boolean;
+    startTime: string; // HH:mm
+    duration: number; // minutes
+    isMIT?: boolean;
+    color?: string;
 }
 
 interface TimeAxisCalendarProps {
     tasks: Task[];
-    onTaskPress: (task: Task) => void;
-    onTimeSlotPress: (time: string) => void;
 }
 
-export default function TimeAxisCalendar({ tasks, onTaskPress, onTimeSlotPress }: TimeAxisCalendarProps) {
-    // Generate time slots from 6 AM to 11 PM
-    const timeSlots = [];
-    for (let hour = 6; hour <= 23; hour++) {
-        timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
-    }
+export default function TimeAxisCalendar({ tasks }: TimeAxisCalendarProps) {
+    const hours = Array.from({ length: 24 }, (_, i) => i);
 
-    // Group tasks by time slot
-    const getTasksForTime = (time: string) => {
-        return tasks.filter(task => task.startTime === time);
+    const getTaskStyle = (task: Task) => {
+        const [h, m] = task.startTime.split(':').map(Number);
+        const startMinutes = h * 60 + m;
+        const top = startMinutes * 1; // 1px per minute
+        const height = task.duration * 1;
+
+        return {
+            top,
+            height,
+            backgroundColor: (task.color || Colors.primary) + '20', // 20% opacity
+            borderLeftColor: task.color || Colors.primary,
+        };
     };
 
     return (
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-            {timeSlots.map((time) => {
-                const timeTasks = getTasksForTime(time);
-                const hasAnyTask = timeTasks.length > 0;
-
-                return (
-                    <View key={time} style={styles.timeSlot}>
-                        {/* Time Label */}
-                        <View style={styles.timeLabel}>
-                            <Text style={styles.timeText}>{time}</Text>
-                        </View>
-
-                        {/* Task Area */}
-                        <TouchableOpacity
-                            style={styles.taskArea}
-                            onPress={() => !hasAnyTask && onTimeSlotPress(time)}
-                            activeOpacity={hasAnyTask ? 1 : 0.7}
-                        >
-                            {hasAnyTask ? (
-                                <View style={styles.tasksContainer}>
-                                    {timeTasks.map((task) => (
-                                        <TouchableOpacity
-                                            key={task.id}
-                                            style={[
-                                                styles.taskCard,
-                                                { borderLeftColor: task.goalColor, borderLeftWidth: 4 },
-                                            ]}
-                                            onPress={() => onTaskPress(task)}
-                                            activeOpacity={0.7}
-                                        >
-                                            <View style={styles.taskHeader}>
-                                                <Text style={styles.taskName} numberOfLines={1}>
-                                                    {task.name}
-                                                </Text>
-                                                {task.isMIT && <Text style={styles.mitStar}>⭐</Text>}
-                                            </View>
-                                            <Text style={styles.goalName} numberOfLines={1}>
-                                                {task.goalName}
-                                            </Text>
-                                            <Text style={styles.duration}>{task.duration} min</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            ) : (
-                                <View style={styles.emptySlot}>
-                                    <Text style={styles.addTaskHint}>+</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
+        <View style={styles.container}>
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                <View style={styles.timelineContainer}>
+                    {/* Time Labels */}
+                    <View style={styles.timeLabels}>
+                        {hours.map((hour) => (
+                            <View key={hour} style={styles.timeLabelContainer}>
+                                <Text style={styles.timeLabel}>
+                                    {hour.toString().padStart(2, '0')}:00
+                                </Text>
+                            </View>
+                        ))}
                     </View>
-                );
-            })}
-        </ScrollView>
+
+                    {/* Grid Lines */}
+                    <View style={styles.gridContainer}>
+                        {hours.map((hour) => (
+                            <View key={hour} style={styles.gridLine} />
+                        ))}
+
+                        {/* Tasks */}
+                        {tasks.map((task) => (
+                            <View
+                                key={task.id}
+                                style={[styles.taskItem, getTaskStyle(task)]}
+                            >
+                                <View style={styles.taskHeader}>
+                                    <Text style={styles.taskTitle} numberOfLines={1}>
+                                        {task.title}
+                                    </Text>
+                                    {task.isMIT && <Text style={styles.mitStar}>★</Text>}
+                                </View>
+                                <Text style={styles.goalName} numberOfLines={1}>
+                                    {task.goalName}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: Colors.surface,
+        borderRadius: 12,
+        overflow: 'hidden',
     },
-    timeSlot: {
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        height: 24 * 60, // 24 hours * 60 minutes * 1px/min
+    },
+    timelineContainer: {
         flexDirection: 'row',
-        minHeight: 60,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.default,
+        height: '100%',
+    },
+    timeLabels: {
+        width: 50,
+        borderRightWidth: 1,
+        borderRightColor: Colors.border.default,
+    },
+    timeLabelContainer: {
+        height: 60, // 1 hour
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        paddingTop: 4,
     },
     timeLabel: {
-        width: 60,
-        paddingTop: Spacing.sm,
-        paddingRight: Spacing.sm,
-    },
-    timeText: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: 10,
         color: Colors.text.tertiary,
-        textAlign: 'right',
     },
-    taskArea: {
+    gridContainer: {
         flex: 1,
-        paddingVertical: Spacing.sm,
-        paddingLeft: Spacing.md,
+        position: 'relative',
     },
-    tasksContainer: {
-        gap: Spacing.sm,
+    gridLine: {
+        height: 60,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border.default + '40', // lighter border
     },
-    taskCard: {
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.sm,
-        padding: Spacing.md,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+    taskItem: {
+        position: 'absolute',
+        left: 4,
+        right: 4,
+        borderRadius: 4,
+        borderLeftWidth: 4,
+        padding: 4,
+        justifyContent: 'center',
     },
     taskHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 4,
+        alignItems: 'center',
     },
-    taskName: {
-        fontSize: Typography.body.fontSize,
+    taskTitle: {
+        fontSize: Typography.small.fontSize,
         fontWeight: '600',
         color: Colors.text.primary,
         flex: 1,
     },
     mitStar: {
-        fontSize: 14,
-        marginLeft: Spacing.sm,
+        color: Colors.warning,
+        fontSize: 12,
+        marginLeft: 4,
     },
     goalName: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: 10,
         color: Colors.text.secondary,
-        marginBottom: 2,
-    },
-    duration: {
-        fontSize: Typography.small.fontSize,
-        color: Colors.text.tertiary,
-    },
-    emptySlot: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: 50,
-    },
-    addTaskHint: {
-        fontSize: 24,
-        color: Colors.border.default,
     },
 });

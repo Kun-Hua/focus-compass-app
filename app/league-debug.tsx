@@ -1,76 +1,155 @@
-import { useEffect, useState } from 'react';
-import { Button, ScrollView, StyleSheet } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { getMyLeagueMapping } from '@/core/services/leagueApi';
+import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { useAuth } from '@/contexts/AuthContext';
+import { leagueApi } from '@/services/leagueApi';
+import React, { useState } from 'react';
+import {
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LeagueDebugScreen() {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
-  const [error, setError] = useState<string | null>(null);
+    const { user } = useAuth();
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
 
-  const run = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getMyLeagueMapping();
-      setResult(data ?? null);
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    const run = async () => {
+        if (!user) {
+            setError('User not logged in');
+            return;
+        }
 
-  useEffect(() => {
-    run();
-  }, []);
+        setLoading(true);
+        setError(null);
+        setResult('');
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <ThemedView style={styles.block}>
-        <ThemedText type="title">聯賽 API Debug</ThemedText>
-        <ThemedText style={styles.caption}>
-          呼叫 getMyLeagueMapping()，顯示回傳結果或錯誤訊息。
-        </ThemedText>
-        <Button title={loading ? '讀取中…' : '重新載入'} onPress={run} disabled={loading} />
-        {error && (
-          <ThemedText style={styles.error}>
-            錯誤：
-            {error}
-          </ThemedText>
-        )}
-        <ThemedText style={styles.resultLabel}>回傳結果：</ThemedText>
-        <ThemedText style={styles.resultText}>
-          {result ? JSON.stringify(result, null, 2) : '尚無資料（可能尚未登入或沒有對應紀錄）。'}
-        </ThemedText>
-      </ThemedView>
-    </ScrollView>
-  );
+        try {
+            const mapping = await leagueApi.getMyLeagueMapping(user.id);
+            setResult(JSON.stringify(mapping, null, 2));
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || 'An error occurred');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <ScrollView contentContainerStyle={styles.content}>
+                <Text style={styles.title}>League Debug</Text>
+
+                <View style={styles.card}>
+                    <Text style={styles.description}>
+                        Test getMyLeagueMapping() function.
+                    </Text>
+
+                    <TouchableOpacity
+                        style={[styles.button, loading && styles.buttonDisabled]}
+                        onPress={run}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color={Colors.surface} />
+                        ) : (
+                            <Text style={styles.buttonText}>Run Test</Text>
+                        )}
+                    </TouchableOpacity>
+
+                    {error && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorTitle}>Error:</Text>
+                            <Text style={styles.errorText}>{error}</Text>
+                        </View>
+                    )}
+
+                    {result ? (
+                        <View style={styles.resultContainer}>
+                            <Text style={styles.resultTitle}>Result:</Text>
+                            <Text style={styles.resultText}>{result}</Text>
+                        </View>
+                    ) : null}
+                </View>
+            </ScrollView>
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    padding: 16,
-  },
-  block: {
-    gap: 12,
-  },
-  caption: {
-    marginBottom: 8,
-  },
-  error: {
-    marginTop: 8,
-    color: 'red',
-  },
-  resultLabel: {
-    marginTop: 12,
-    fontWeight: '600',
-  },
-  resultText: {
-    marginTop: 4,
-    fontFamily: 'monospace',
-  },
+    container: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    content: {
+        padding: Spacing.xl,
+    },
+    title: {
+        fontSize: Typography.h1.fontSize,
+        fontWeight: Typography.h1.fontWeight,
+        color: Colors.text.primary,
+        marginBottom: Spacing.xl,
+    },
+    card: {
+        backgroundColor: Colors.surface,
+        borderRadius: 12,
+        padding: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
+    },
+    description: {
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.secondary,
+        marginBottom: Spacing.lg,
+    },
+    button: {
+        backgroundColor: Colors.primary,
+        padding: Spacing.md,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    buttonDisabled: {
+        opacity: 0.7,
+    },
+    buttonText: {
+        color: Colors.surface,
+        fontSize: Typography.body.fontSize,
+        fontWeight: '600',
+    },
+    errorContainer: {
+        marginTop: Spacing.lg,
+        padding: Spacing.md,
+        backgroundColor: Colors.error + '20',
+        borderRadius: 8,
+    },
+    errorTitle: {
+        color: Colors.error,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    errorText: {
+        color: Colors.error,
+    },
+    resultContainer: {
+        marginTop: Spacing.lg,
+        padding: Spacing.md,
+        backgroundColor: Colors.background,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
+    },
+    resultTitle: {
+        color: Colors.text.primary,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    resultText: {
+        color: Colors.text.secondary,
+        fontFamily: 'monospace',
+        fontSize: 12,
+    },
 });

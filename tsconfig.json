@@ -4,9 +4,6 @@
     "strict": true,
     "baseUrl": "./",
     "paths": {
-      "@/core/*": [
-        "./src/core/*"
-      ],
       "@/components/*": [
         "./components/*"
       ],
@@ -16,8 +13,20 @@
       "@/constants/*": [
         "./constants/*"
       ],
-      "@/*": [
-        "./src/*"
+      "@/contexts/*": [
+        "./contexts/*"
+      ],
+      "@/services/*": [
+        "./services/*"
+      ],
+      "@/lib/*": [
+        "./lib/*"
+      ],
+      "@/types/*": [
+        "./types/*"
+      ],
+      "@/storage/*": [
+        "./storage/*"
       ]
     }
   },

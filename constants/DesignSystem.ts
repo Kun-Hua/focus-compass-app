@@ -7,11 +7,11 @@ export const Colors = {
   success: '#10B981',       // Green - Achievement, completion
   warning: '#F59E0B',       // Amber - Alerts, caution
   error: '#EF4444',         // Red - Failures, errors
-  
+
   // Neutral Colors
   background: '#F9FAFB',    // Light Gray - App background
   surface: '#FFFFFF',       // White - Cards, modals, panels
-  
+
   // Text Colors
   text: {
     primary: '#111827',     // Gray 900
@@ -19,13 +19,13 @@ export const Colors = {
     tertiary: '#9CA3AF',    // Gray 400
     disabled: '#D1D5DB',    // Gray 300
   },
-  
+
   // State Colors (Lighter variants)
   primaryLight: '#EFF6FF',  // Blue 50
   successLight: '#D1FAE5',  // Green 100
   warningLight: '#FEF3C7',  // Amber 100
   errorLight: '#FEE2E2',    // Red 100
-  
+
   // Border Colors
   border: {
     default: '#E5E7EB',     // Gray 200
@@ -45,6 +45,11 @@ export const Typography = {
     fontSize: 24,
     fontWeight: '600' as const,
     lineHeight: 32,
+  },
+  h3: {
+    fontSize: 20,
+    fontWeight: '600' as const,
+    lineHeight: 28,
   },
   body: {
     fontSize: 16,

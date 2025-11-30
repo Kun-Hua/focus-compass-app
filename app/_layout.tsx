@@ -1,5 +1,5 @@
-import { AuthProvider, useAuth } from '@/core/context/AuthContext';
-import { GoalsProvider } from '@/core/context/GoalsContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { GoalsProvider } from '@/contexts/GoalsContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -23,11 +23,9 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(tabs)';
 
     if (!user && inAuthGroup) {
-      // 未登入但在主頁，導向登入頁
-      router.replace('/login');
+      // ?�登?��??�主?��?導�??�入??      router.replace('/login');
     } else if (user && !inAuthGroup) {
-      // 已登入但在登入頁，導向主頁
-      router.replace('/(tabs)');
+      // 已登?��??�登?��?，�??�主??      router.replace('/(tabs)');
     }
   }, [user, segments, isLoading]);
 

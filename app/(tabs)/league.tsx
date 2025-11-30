@@ -1,4 +1,4 @@
-import Card from '@/components/ui/Card';
+﻿import Card from '@/components/ui/Card';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -23,8 +23,8 @@ export default function LeagueScreen() {
     ];
 
     const badges = [
-        { id: '1', name: 'Sprinter', icon: '⚡️', unlocked: true },
-        { id: '2', name: 'Honest', icon: '🛡️', unlocked: true },
+        { id: '1', name: 'Sprinter', icon: '🏃', unlocked: true },
+        { id: '2', name: 'Honest', icon: '💎', unlocked: true },
         { id: '3', name: '???', icon: '🔒', unlocked: false },
         { id: '4', name: '???', icon: '🔒', unlocked: false },
     ];
@@ -108,7 +108,7 @@ export default function LeagueScreen() {
                                         {item.minutes}m
                                     </Text>
                                     <Text style={styles.trendIcon}>
-                                        {item.trend === 'up' ? '↑' : item.trend === 'down' ? '↓' : '—'}
+                                        {item.trend === 'up' ? '⬆️' : item.trend === 'down' ? '⬇️' : '➖'}
                                     </Text>
                                 </View>
                             </View>

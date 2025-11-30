@@ -1,9 +1,9 @@
 import Card from '@/components/ui/Card';
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-interface Goal {
+interface UIGoal {
     id: string;
     name: string;
     description?: string;
@@ -20,225 +20,155 @@ export interface GoalPlan {
 }
 
 interface GoalBreakdownProps {
-    goal: Goal;
+    goal: UIGoal;
     breakdown?: GoalPlan;
-    onUpdate: (goalId: string, breakdown: GoalPlan) => void;
+    onUpdate: (breakdown: GoalPlan) => void;
 }
 
 export default function GoalBreakdown({ goal, breakdown, onUpdate }: GoalBreakdownProps) {
-    const [annualGoal, setAnnualGoal] = useState(breakdown?.annualGoal || '');
-    const [quarterlyGoal, setQuarterlyGoal] = useState(breakdown?.quarterlyGoal || '');
-    const [monthlyGoal, setMonthlyGoal] = useState(breakdown?.monthlyGoal || '');
-    const [weeklyGoal, setWeeklyGoal] = useState(breakdown?.weeklyGoal || '');
-    const [weeklyCommitmentHours, setWeeklyCommitmentHours] = useState(
-        breakdown?.weeklyCommitmentHours?.toString() || ''
-    );
+    const [localPlan, setLocalPlan] = useState<GoalPlan>({
+        goalId: goal.id,
+        annualGoal: '',
+        quarterlyGoal: '',
+        monthlyGoal: '',
+        weeklyGoal: '',
+        weeklyCommitmentHours: 0,
+    });
 
-    // Sync state when breakdown or goal changes
     useEffect(() => {
-        setAnnualGoal(breakdown?.annualGoal || '');
-        setQuarterlyGoal(breakdown?.quarterlyGoal || '');
-        setMonthlyGoal(breakdown?.monthlyGoal || '');
-        setWeeklyGoal(breakdown?.weeklyGoal || '');
-        setWeeklyCommitmentHours(breakdown?.weeklyCommitmentHours?.toString() || '');
-    }, [breakdown, goal.id]);
+        if (breakdown) {
+            setLocalPlan(breakdown);
+        }
+    }, [breakdown]);
 
-    const handleUpdate = (field: keyof GoalPlan, value: string) => {
-        const updatedBreakdown: GoalPlan = {
-            goalId: goal.id,
-            annualGoal: field === 'annualGoal' ? value : annualGoal,
-            quarterlyGoal: field === 'quarterlyGoal' ? value : quarterlyGoal,
-            monthlyGoal: field === 'monthlyGoal' ? value : monthlyGoal,
-            weeklyGoal: field === 'weeklyGoal' ? value : weeklyGoal,
-            weeklyCommitmentHours:
-                field === 'weeklyCommitmentHours'
-                    ? parseFloat(value) || 0
-                    : parseFloat(weeklyCommitmentHours) || 0,
-        };
-        onUpdate(goal.id, updatedBreakdown);
+    const handleChange = (field: keyof GoalPlan, value: string | number) => {
+        const newPlan = { ...localPlan, [field]: value };
+        setLocalPlan(newPlan);
+        onUpdate(newPlan);
     };
 
-    const annualForecast = (parseFloat(weeklyCommitmentHours) || 0) * 52;
-
     return (
-        <Card style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.title}>{goal.name}</Text>
-                <Text style={styles.subtitle}>目標階梯拆解</Text>
-            </View>
-
-            {/* Annual Goal */}
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>年度目標</Text>
-                <TextInput
-                    style={styles.textInput}
-                    placeholder="例如：達成 XXX 成就..."
-                    placeholderTextColor={Colors.text.tertiary}
-                    value={annualGoal}
-                    onChangeText={(text) => {
-                        setAnnualGoal(text);
-                        handleUpdate('annualGoal', text);
-                    }}
-                    multiline
-                    numberOfLines={3}
-                />
-            </View>
-
-            {/* Quarterly Goal */}
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>季度目標</Text>
-                <TextInput
-                    style={styles.textInput}
-                    placeholder="例如：本季完成 XXX..."
-                    placeholderTextColor={Colors.text.tertiary}
-                    value={quarterlyGoal}
-                    onChangeText={(text) => {
-                        setQuarterlyGoal(text);
-                        handleUpdate('quarterlyGoal', text);
-                    }}
-                    multiline
-                    numberOfLines={3}
-                />
-            </View>
-
-            {/* Monthly Goal */}
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>月度目標</Text>
-                <TextInput
-                    style={styles.textInput}
-                    placeholder="例如：本月達成 XXX..."
-                    placeholderTextColor={Colors.text.tertiary}
-                    value={monthlyGoal}
-                    onChangeText={(text) => {
-                        setMonthlyGoal(text);
-                        handleUpdate('monthlyGoal', text);
-                    }}
-                    multiline
-                    numberOfLines={3}
-                />
-            </View>
-
-            {/* Weekly Goal */}
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>週目標</Text>
-                <TextInput
-                    style={styles.textInput}
-                    placeholder="例如：本週完成 XXX..."
-                    placeholderTextColor={Colors.text.tertiary}
-                    value={weeklyGoal}
-                    onChangeText={(text) => {
-                        setWeeklyGoal(text);
-                        handleUpdate('weeklyGoal', text);
-                    }}
-                    multiline
-                    numberOfLines={3}
-                />
-            </View>
-
-            {/* Weekly Commitment Hours */}
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>週承諾時數</Text>
-                <View style={styles.commitmentRow}>
-                    <TextInput
-                        style={styles.numberInput}
-                        placeholder="0"
-                        placeholderTextColor={Colors.text.tertiary}
-                        value={weeklyCommitmentHours}
-                        onChangeText={(text) => {
-                            setWeeklyCommitmentHours(text);
-                            handleUpdate('weeklyCommitmentHours', text);
-                        }}
-                        keyboardType="decimal-pad"
-                    />
-                    <Text style={styles.unit}>小時/週</Text>
-                </View>
-                {annualForecast > 0 && (
-                    <View style={styles.forecastContainer}>
-                        <Text style={styles.forecastLabel}>年度時間複利：</Text>
-                        <Text style={styles.forecastValue}>≈ {annualForecast.toFixed(0)} 小時/年</Text>
+        <View style={styles.container}>
+            <Card style={styles.card}>
+                <View style={styles.row}>
+                    <View style={styles.column}>
+                        <Text style={styles.label}>Annual Goal</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={localPlan.annualGoal}
+                            onChangeText={(text) => handleChange('annualGoal', text)}
+                            placeholder="What to achieve this year?"
+                            placeholderTextColor={Colors.text.tertiary}
+                            multiline
+                        />
                     </View>
-                )}
-            </View>
-        </Card>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.row}>
+                    <View style={styles.column}>
+                        <Text style={styles.label}>Quarterly Goal</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={localPlan.quarterlyGoal}
+                            onChangeText={(text) => handleChange('quarterlyGoal', text)}
+                            placeholder="This quarter?"
+                            placeholderTextColor={Colors.text.tertiary}
+                            multiline
+                        />
+                    </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.row}>
+                    <View style={styles.column}>
+                        <Text style={styles.label}>Monthly Goal</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={localPlan.monthlyGoal}
+                            onChangeText={(text) => handleChange('monthlyGoal', text)}
+                            placeholder="This month?"
+                            placeholderTextColor={Colors.text.tertiary}
+                            multiline
+                        />
+                    </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.row}>
+                    <View style={styles.column}>
+                        <Text style={styles.label}>Weekly Goal</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={localPlan.weeklyGoal}
+                            onChangeText={(text) => handleChange('weeklyGoal', text)}
+                            placeholder="This week?"
+                            placeholderTextColor={Colors.text.tertiary}
+                            multiline
+                        />
+                    </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.row}>
+                    <View style={styles.column}>
+                        <Text style={styles.label}>Weekly Hours</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={localPlan.weeklyCommitmentHours.toString()}
+                            onChangeText={(text) => {
+                                const hours = parseFloat(text);
+                                if (!isNaN(hours)) {
+                                    handleChange('weeklyCommitmentHours', hours);
+                                } else if (text === '') {
+                                    handleChange('weeklyCommitmentHours', 0);
+                                }
+                            }}
+                            placeholder="0"
+                            placeholderTextColor={Colors.text.tertiary}
+                            keyboardType="numeric"
+                        />
+                    </View>
+                </View>
+            </Card>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        padding: Spacing.lg,
-        gap: Spacing.lg,
+        padding: Spacing.md,
     },
-    header: {
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.default,
-        paddingBottom: Spacing.md,
+    card: {
+        padding: Spacing.md,
+        backgroundColor: Colors.background,
     },
-    title: {
-        fontSize: Typography.h2.fontSize,
-        fontWeight: Typography.h2.fontWeight,
-        color: Colors.text.primary,
-        marginBottom: 4,
+    row: {
+        flexDirection: 'row',
+        marginBottom: Spacing.sm,
     },
-    subtitle: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.secondary,
-    },
-    inputGroup: {
-        gap: Spacing.sm,
+    column: {
+        flex: 1,
     },
     label: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: Typography.small.fontSize,
+        color: Colors.text.secondary,
+        marginBottom: 4,
         fontWeight: '600',
-        color: Colors.text.secondary,
     },
-    textInput: {
-        backgroundColor: Colors.background,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        borderRadius: BorderRadius.sm,
-        padding: Spacing.md,
+    input: {
         fontSize: Typography.body.fontSize,
         color: Colors.text.primary,
-        minHeight: 80,
-        textAlignVertical: 'top',
+        padding: 0,
+        minHeight: 24,
     },
-    commitmentRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    numberInput: {
-        backgroundColor: Colors.background,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        borderRadius: BorderRadius.sm,
-        padding: Spacing.md,
-        fontSize: Typography.body.fontSize,
-        color: Colors.text.primary,
-        width: 100,
-        textAlign: 'center',
-    },
-    unit: {
-        fontSize: Typography.body.fontSize,
-        color: Colors.text.secondary,
-    },
-    forecastContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.primaryLight,
-        padding: Spacing.md,
-        borderRadius: BorderRadius.sm,
-        marginTop: Spacing.sm,
-    },
-    forecastLabel: {
-        fontSize: Typography.caption.fontSize,
-        color: Colors.text.secondary,
-        marginRight: Spacing.sm,
-    },
-    forecastValue: {
-        fontSize: Typography.body.fontSize,
-        fontWeight: '700',
-        color: Colors.primary,
+    divider: {
+        height: 1,
+        backgroundColor: Colors.border.default,
+        marginVertical: Spacing.md,
     },
 });

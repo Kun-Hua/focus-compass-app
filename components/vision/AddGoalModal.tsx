@@ -1,95 +1,127 @@
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import React, { useState } from 'react';
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 interface AddGoalModalProps {
     visible: boolean;
     onClose: () => void;
-    onAdd: (name: string, category: 'Core' | 'Avoidance') => void;
+    onAdd: (goal: { name: string; description?: string; type: 'core' | 'avoid' }) => void;
 }
 
 export default function AddGoalModal({ visible, onClose, onAdd }: AddGoalModalProps) {
     const [name, setName] = useState('');
-    const [category, setCategory] = useState<'Core' | 'Avoidance'>('Core');
+    const [description, setDescription] = useState('');
+    const [type, setType] = useState<'core' | 'avoid'>('core');
 
-    const handleAdd = () => {
-        if (name.trim()) {
-            onAdd(name, category);
-            setName('');
-            setCategory('Core');
-            onClose();
-        }
+    const handleSave = () => {
+        if (!name.trim()) return;
+        onAdd({
+            name: name.trim(),
+            description: description.trim() || undefined,
+            type,
+        });
+        setName('');
+        setDescription('');
+        setType('core');
+        onClose();
     };
 
     return (
         <Modal
             visible={visible}
             transparent
-            animationType="fade"
+            animationType="slide"
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                <View style={styles.container}>
-                    <Text style={styles.title}>新增目標</Text>
-
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>目標名稱</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="例如：學測頂標、減重 5 公斤"
-                            placeholderTextColor={Colors.text.tertiary}
-                            value={name}
-                            onChangeText={setName}
-                            autoFocus
-                        />
+                <View style={styles.sheet}>
+                    <View style={styles.header}>
+                        <Text style={styles.title}>New Goal</Text>
+                        <TouchableOpacity onPress={onClose}>
+                            <Text style={styles.closeIcon}>✕</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>類別</Text>
-                        <View style={styles.categoryContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.categoryButton,
-                                    category === 'Core' && styles.categoryButtonActive,
-                                ]}
-                                onPress={() => setCategory('Core')}
-                            >
-                                <Text
-                                    style={[
-                                        styles.categoryText,
-                                        category === 'Core' && styles.categoryTextActive,
-                                    ]}
-                                >
-                                    核心目標 (Core)
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[
-                                    styles.categoryButton,
-                                    category === 'Avoidance' && styles.categoryButtonActive,
-                                ]}
-                                onPress={() => setCategory('Avoidance')}
-                            >
-                                <Text
-                                    style={[
-                                        styles.categoryText,
-                                        category === 'Avoidance' && styles.categoryTextActive,
-                                    ]}
-                                >
-                                    避免清單 (Avoid)
-                                </Text>
-                            </TouchableOpacity>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Goal Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="What do you want to achieve?"
+                                placeholderTextColor={Colors.text.tertiary}
+                                value={name}
+                                onChangeText={setName}
+                                autoFocus
+                            />
                         </View>
-                    </View>
 
-                    <View style={styles.footer}>
-                        <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                            <Text style={styles.cancelText}>取消</Text>
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Description (Optional)</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                placeholder="Add some details..."
+                                placeholderTextColor={Colors.text.tertiary}
+                                value={description}
+                                onChangeText={setDescription}
+                                multiline
+                                numberOfLines={3}
+                            />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Goal Type</Text>
+                            <View style={styles.typeContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.typeButton,
+                                        type === 'core' && styles.typeButtonActive,
+                                    ]}
+                                    onPress={() => setType('core')}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.typeButtonText,
+                                            type === 'core' && styles.typeButtonTextActive,
+                                        ]}
+                                    >
+                                        Core Goal
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.typeButton,
+                                        type === 'avoid' && styles.typeButtonActive,
+                                    ]}
+                                    onPress={() => setType('avoid')}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.typeButtonText,
+                                            type === 'avoid' && styles.typeButtonTextActive,
+                                        ]}
+                                    >
+                                        Avoidance Goal
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.saveButton, !name && styles.saveButtonDisabled]}
+                            onPress={handleSave}
+                            disabled={!name}
+                        >
+                            <Text style={styles.saveButtonText}>Create Goal</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-                            <Text style={styles.addText}>新增</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
             </View>
         </Modal>
@@ -100,86 +132,90 @@ const styles = StyleSheet.create({
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: Spacing.xl,
+        justifyContent: 'flex-end',
     },
-    container: {
-        width: '100%',
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.lg,
+    sheet: {
+        backgroundColor: Colors.background,
+        borderTopLeftRadius: BorderRadius.lg,
+        borderTopRightRadius: BorderRadius.lg,
         padding: Spacing.xl,
+        maxHeight: '80%',
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.xl,
     },
     title: {
-        fontSize: Typography.h2.fontSize,
-        fontWeight: Typography.h2.fontWeight,
+        fontSize: Typography.h3.fontSize,
+        fontWeight: '600',
         color: Colors.text.primary,
-        marginBottom: Spacing.lg,
-        textAlign: 'center',
     },
-    inputContainer: {
-        marginBottom: Spacing.lg,
+    closeIcon: {
+        fontSize: 24,
+        color: Colors.text.secondary,
+        padding: Spacing.xs,
+    },
+    formGroup: {
+        marginBottom: Spacing.xl,
     },
     label: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: Typography.small.fontSize,
+        fontWeight: '600',
         color: Colors.text.secondary,
-        marginBottom: Spacing.xs,
+        marginBottom: Spacing.sm,
     },
     input: {
-        borderWidth: 1,
-        borderColor: Colors.border.default,
+        backgroundColor: Colors.surface,
         borderRadius: BorderRadius.md,
         padding: Spacing.md,
         fontSize: Typography.body.fontSize,
         color: Colors.text.primary,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
     },
-    categoryContainer: {
+    textArea: {
+        height: 100,
+        textAlignVertical: 'top',
+    },
+    typeContainer: {
         flexDirection: 'row',
         gap: Spacing.md,
     },
-    categoryButton: {
+    typeButton: {
         flex: 1,
-        paddingVertical: Spacing.sm,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
         borderWidth: 1,
         borderColor: Colors.border.default,
-        borderRadius: BorderRadius.md,
         alignItems: 'center',
     },
-    categoryButtonActive: {
+    typeButtonActive: {
         backgroundColor: Colors.primary,
         borderColor: Colors.primary,
     },
-    categoryText: {
-        fontSize: Typography.caption.fontSize,
+    typeButtonText: {
+        fontSize: Typography.body.fontSize,
         color: Colors.text.secondary,
     },
-    categoryTextActive: {
+    typeButtonTextActive: {
         color: Colors.surface,
         fontWeight: '600',
     },
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: Spacing.md,
+    saveButton: {
+        backgroundColor: Colors.primary,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.lg,
+        alignItems: 'center',
         marginTop: Spacing.sm,
     },
-    cancelButton: {
-        paddingVertical: Spacing.md,
-        paddingHorizontal: Spacing.lg,
+    saveButtonDisabled: {
+        opacity: 0.5,
     },
-    cancelText: {
+    saveButtonText: {
         fontSize: Typography.body.fontSize,
-        color: Colors.text.secondary,
-    },
-    addButton: {
-        backgroundColor: Colors.primary,
-        paddingVertical: Spacing.md,
-        paddingHorizontal: Spacing.lg,
-        borderRadius: BorderRadius.md,
-    },
-    addText: {
-        fontSize: Typography.body.fontSize,
-        color: Colors.surface,
         fontWeight: '600',
+        color: Colors.surface,
     },
 });

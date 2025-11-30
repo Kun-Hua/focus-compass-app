@@ -1,40 +1,51 @@
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import React, { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 interface Goal {
     id: string;
     name: string;
-    color: string;
+    color?: string;
 }
 
 interface AddTaskSheetProps {
     visible: boolean;
     onClose: () => void;
-    onSave: (task: { name: string; goalId: string; isMIT: boolean; time: string }) => void;
+    onAdd: (task: { title: string; goalId: string; estimatedMinutes?: number }) => void;
     goals: Goal[];
-    selectedTime: string;
 }
 
-export default function AddTaskSheet({ visible, onClose, onSave, goals, selectedTime }: AddTaskSheetProps) {
-    const [taskName, setTaskName] = useState('');
-    const [selectedGoalId, setSelectedGoalId] = useState(goals[0]?.id || '');
-    const [isMIT, setIsMIT] = useState(false);
+export default function AddTaskSheet({ visible, onClose, onAdd, goals }: AddTaskSheetProps) {
+    const [title, setTitle] = useState('');
+    const [selectedGoalId, setSelectedGoalId] = useState<string>('');
+    const [estimatedMinutes, setEstimatedMinutes] = useState('');
 
     const handleSave = () => {
-        if (taskName.trim()) {
-            onSave({
-                name: taskName.trim(),
-                goalId: selectedGoalId,
-                isMIT,
-                time: selectedTime,
-            });
-            // Reset form
-            setTaskName('');
-            setSelectedGoalId(goals[0]?.id || '');
-            setIsMIT(false);
-            onClose();
+        if (!title.trim()) return;
+        if (!selectedGoalId && goals.length > 0) {
+            // Select first goal by default if none selected
+            setSelectedGoalId(goals[0].id);
         }
+
+        onAdd({
+            title: title.trim(),
+            goalId: selectedGoalId || (goals.length > 0 ? goals[0].id : ''),
+            estimatedMinutes: estimatedMinutes ? parseInt(estimatedMinutes, 10) : undefined,
+        });
+
+        // Reset form
+        setTitle('');
+        setEstimatedMinutes('');
+        setSelectedGoalId('');
+        onClose();
     };
 
     return (
@@ -46,87 +57,77 @@ export default function AddTaskSheet({ visible, onClose, onSave, goals, selected
         >
             <View style={styles.overlay}>
                 <View style={styles.sheet}>
-                    {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.title}>Add Task</Text>
+                        <Text style={styles.title}>New Task</Text>
                         <TouchableOpacity onPress={onClose}>
                             <Text style={styles.closeIcon}>✕</Text>
                         </TouchableOpacity>
                     </View>
 
                     <ScrollView showsVerticalScrollIndicator={false}>
-                        {/* Time Display */}
-                        <View style={styles.timeDisplay}>
-                            <Text style={styles.timeLabel}>Time</Text>
-                            <Text style={styles.timeValue}>{selectedTime}</Text>
-                        </View>
-
-                        {/* Task Name Input */}
-                        <View style={styles.inputSection}>
-                            <Text style={styles.label}>Task Name*</Text>
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Task Name</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="e.g., 補習、Meeting、Gym"
-                                value={taskName}
-                                onChangeText={setTaskName}
-                                autoFocus
+                                placeholder="What do you want to focus on?"
                                 placeholderTextColor={Colors.text.tertiary}
+                                value={title}
+                                onChangeText={setTitle}
+                                autoFocus
                             />
                         </View>
 
-                        {/* Goal Selection */}
-                        <View style={styles.inputSection}>
-                            <Text style={styles.label}>Goal*</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                <View style={styles.goalsContainer}>
-                                    {goals.map((goal) => (
-                                        <TouchableOpacity
-                                            key={goal.id}
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Link to Goal</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.goalsContainer}
+                            >
+                                {goals.map((goal) => (
+                                    <TouchableOpacity
+                                        key={goal.id}
+                                        style={[
+                                            styles.goalChip,
+                                            selectedGoalId === goal.id && styles.goalChipSelected,
+                                            { borderColor: goal.color || Colors.primary }
+                                        ]}
+                                        onPress={() => setSelectedGoalId(goal.id)}
+                                    >
+                                        <Text
                                             style={[
-                                                styles.goalOption,
-                                                selectedGoalId === goal.id && styles.goalOptionActive,
-                                                { borderColor: goal.color },
+                                                styles.goalChipText,
+                                                selectedGoalId === goal.id && styles.goalChipTextSelected,
+                                                { color: selectedGoalId === goal.id ? Colors.surface : (goal.color || Colors.primary) }
                                             ]}
-                                            onPress={() => setSelectedGoalId(goal.id)}
                                         >
-                                            <View style={[styles.goalDot, { backgroundColor: goal.color }]} />
-                                            <Text
-                                                style={[
-                                                    styles.goalOptionText,
-                                                    selectedGoalId === goal.id && styles.goalOptionTextActive,
-                                                ]}
-                                            >
-                                                {goal.name}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
+                                            {goal.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
                             </ScrollView>
                         </View>
 
-                        {/* MIT Toggle */}
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Duration (minutes)</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="25"
+                                placeholderTextColor={Colors.text.tertiary}
+                                value={estimatedMinutes}
+                                onChangeText={setEstimatedMinutes}
+                                keyboardType="numeric"
+                            />
+                        </View>
+
                         <TouchableOpacity
-                            style={styles.mitToggle}
-                            onPress={() => setIsMIT(!isMIT)}
+                            style={[styles.saveButton, !title && styles.saveButtonDisabled]}
+                            onPress={handleSave}
+                            disabled={!title}
                         >
-                            <View style={styles.mitLeft}>
-                                <Text style={styles.mitIcon}>⭐</Text>
-                                <Text style={styles.mitLabel}>Mark as MIT (Most Important Task)</Text>
-                            </View>
-                            <View style={[styles.toggle, isMIT && styles.toggleActive]}>
-                                <View style={[styles.toggleKnob, isMIT && styles.toggleKnobActive]} />
-                            </View>
+                            <Text style={styles.saveButtonText}>Add Task</Text>
                         </TouchableOpacity>
                     </ScrollView>
-
-                    {/* Save Button */}
-                    <TouchableOpacity
-                        style={[styles.saveButton, !taskName.trim() && styles.saveButtonDisabled]}
-                        onPress={handleSave}
-                        disabled={!taskName.trim()}
-                    >
-                        <Text style={styles.saveButtonText}>Add Task</Text>
-                    </TouchableOpacity>
                 </View>
             </View>
         </Modal>
@@ -140,9 +141,9 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     sheet: {
-        backgroundColor: Colors.surface,
-        borderTopLeftRadius: BorderRadius.md * 2,
-        borderTopRightRadius: BorderRadius.md * 2,
+        backgroundColor: Colors.background,
+        borderTopLeftRadius: BorderRadius.lg,
+        borderTopRightRadius: BorderRadius.lg,
         padding: Spacing.xl,
         maxHeight: '80%',
     },
@@ -153,135 +154,63 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.xl,
     },
     title: {
-        fontSize: Typography.h2.fontSize,
+        fontSize: Typography.h3.fontSize,
         fontWeight: '600',
         color: Colors.text.primary,
     },
     closeIcon: {
-        fontSize: 28,
-        color: Colors.text.tertiary,
-    },
-    timeDisplay: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: Spacing.md,
-        paddingHorizontal: Spacing.lg,
-        backgroundColor: Colors.primaryLight,
-        borderRadius: BorderRadius.sm,
-        marginBottom: Spacing.xl,
-    },
-    timeLabel: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: 24,
         color: Colors.text.secondary,
-        marginRight: Spacing.md,
+        padding: Spacing.xs,
     },
-    timeValue: {
-        fontSize: Typography.body.fontSize,
-        fontWeight: '600',
-        color: Colors.primary,
-    },
-    inputSection: {
+    formGroup: {
         marginBottom: Spacing.xl,
     },
     label: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: Typography.small.fontSize,
         fontWeight: '600',
         color: Colors.text.secondary,
         marginBottom: Spacing.sm,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
     },
     input: {
-        backgroundColor: Colors.background,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        borderRadius: BorderRadius.sm,
-        padding: Spacing.lg,
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.md,
         fontSize: Typography.body.fontSize,
         color: Colors.text.primary,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
     },
     goalsContainer: {
         flexDirection: 'row',
-        gap: Spacing.md,
-    },
-    goalOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.lg,
-        borderRadius: BorderRadius.full,
-        borderWidth: 2,
-        backgroundColor: Colors.background,
         gap: Spacing.sm,
     },
-    goalOptionActive: {
-        backgroundColor: Colors.surface,
+    goalChip: {
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        marginRight: Spacing.sm,
     },
-    goalDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+    goalChipSelected: {
+        backgroundColor: Colors.primary, // Will be overridden by inline style
     },
-    goalOptionText: {
-        fontSize: Typography.caption.fontSize,
+    goalChipText: {
+        fontSize: Typography.small.fontSize,
         fontWeight: '600',
-        color: Colors.text.secondary,
     },
-    goalOptionTextActive: {
-        color: Colors.text.primary,
-    },
-    mitToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: Spacing.lg,
-        paddingHorizontal: Spacing.lg,
-        backgroundColor: Colors.background,
-        borderRadius: BorderRadius.sm,
-        marginBottom: Spacing.xl,
-    },
-    mitLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.md,
-        flex: 1,
-    },
-    mitIcon: {
-        fontSize: 20,
-    },
-    mitLabel: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.text.primary,
-    },
-    toggle: {
-        width: 48,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: Colors.border.default,
-        padding: 2,
-        justifyContent: 'center',
-    },
-    toggleActive: {
-        backgroundColor: Colors.primary,
-    },
-    toggleKnob: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: Colors.surface,
-    },
-    toggleKnobActive: {
-        alignSelf: 'flex-end',
+    goalChipTextSelected: {
+        color: Colors.surface,
     },
     saveButton: {
         backgroundColor: Colors.primary,
-        paddingVertical: Spacing.lg,
-        borderRadius: BorderRadius.sm,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.lg,
         alignItems: 'center',
+        marginTop: Spacing.sm,
     },
     saveButtonDisabled: {
-        backgroundColor: Colors.border.default,
+        opacity: 0.5,
     },
     saveButtonText: {
         fontSize: Typography.body.fontSize,

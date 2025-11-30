@@ -2,11 +2,11 @@ import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSys
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-type ViewMode = 'day' | 'week' | 'month';
+type ViewType = 'day' | 'week' | 'month';
 
 interface ViewSwitcherProps {
-    currentView: ViewMode;
-    onViewChange: (view: ViewMode) => void;
+    currentView: ViewType;
+    onViewChange: (view: ViewType) => void;
 }
 
 export default function ViewSwitcher({ currentView, onViewChange }: ViewSwitcherProps) {
@@ -20,7 +20,6 @@ export default function ViewSwitcher({ currentView, onViewChange }: ViewSwitcher
                     Day
                 </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
                 style={[styles.button, currentView === 'week' && styles.activeButton]}
                 onPress={() => onViewChange('week')}
@@ -29,7 +28,6 @@ export default function ViewSwitcher({ currentView, onViewChange }: ViewSwitcher
                     Week
                 </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
                 style={[styles.button, currentView === 'month' && styles.activeButton]}
                 onPress={() => onViewChange('month')}
@@ -45,32 +43,28 @@ export default function ViewSwitcher({ currentView, onViewChange }: ViewSwitcher
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
-        backgroundColor: Colors.border.default,
-        borderRadius: BorderRadius.sm,
-        padding: 3,
-        gap: 3,
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.full,
+        padding: 4,
+        marginBottom: Spacing.lg,
     },
     button: {
         flex: 1,
-        paddingVertical: 8,
+        paddingVertical: Spacing.sm,
         paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.sm - 2,
+        borderRadius: BorderRadius.full,
         alignItems: 'center',
     },
     activeButton: {
-        backgroundColor: Colors.surface,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
+        backgroundColor: Colors.primary,
     },
     buttonText: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
+        fontSize: Typography.body.fontSize,
         color: Colors.text.secondary,
+        fontWeight: '500',
     },
     activeButtonText: {
-        color: Colors.text.primary,
+        color: Colors.surface,
+        fontWeight: '600',
     },
 });

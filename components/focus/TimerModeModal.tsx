@@ -1,19 +1,25 @@
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import type { Task } from './TimeAxisCalendar';
-
-type TimerMode = 'stopwatch' | 'pomodoro' | 'timelapse';
 
 interface TimerModeModalProps {
     visible: boolean;
-    task: Task | null;
     onClose: () => void;
-    onSelectMode: (mode: TimerMode) => void;
+    onSelectMode: (mode: 'Pomodoro' | 'Stopwatch' | 'Timelapse') => void;
+    currentMode: 'Pomodoro' | 'Stopwatch' | 'Timelapse';
 }
 
-export default function TimerModeModal({ visible, task, onClose, onSelectMode }: TimerModeModalProps) {
-    if (!task) return null;
+export default function TimerModeModal({
+    visible,
+    onClose,
+    onSelectMode,
+    currentMode,
+}: TimerModeModalProps) {
+    const modes = [
+        { id: 'Pomodoro', label: 'Pomodoro', icon: '⏱️', desc: '25m focus, 5m break' },
+        { id: 'Stopwatch', label: 'Stopwatch', icon: '⏱️', desc: 'Count up timer' },
+        { id: 'Timelapse', label: 'Timelapse', icon: '📷', desc: 'Record your session' },
+    ] as const;
 
     return (
         <Modal
@@ -22,60 +28,44 @@ export default function TimerModeModal({ visible, task, onClose, onSelectMode }:
             animationType="fade"
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
-                <View style={styles.modal}>
-                    {/* Header */}
+            <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+                <View style={styles.modalContent}>
                     <View style={styles.header}>
-                        <View style={styles.taskInfo}>
-                            {task.isMIT && <Text style={styles.mitStar}>⭐</Text>}
-                            <Text style={styles.taskName} numberOfLines={2}>
-                                {task.name}
-                            </Text>
-                        </View>
-                        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                        <Text style={styles.title}>Select Timer Mode</Text>
+                        <TouchableOpacity onPress={onClose}>
                             <Text style={styles.closeIcon}>✕</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* Goal Badge */}
-                    <View style={[styles.goalBadge, { backgroundColor: `${task.goalColor}20` }]}>
-                        <View style={[styles.goalDot, { backgroundColor: task.goalColor }]} />
-                        <Text style={styles.goalText}>{task.goalName}</Text>
-                    </View>
-
-                    {/* Mode Selection */}
-                    <Text style={styles.sectionTitle}>Select Timer Mode</Text>
-
-                    <View style={styles.modesContainer}>
+                    {modes.map((mode) => (
                         <TouchableOpacity
-                            style={styles.modeButton}
-                            onPress={() => onSelectMode('stopwatch')}
+                            key={mode.id}
+                            style={[
+                                styles.modeItem,
+                                currentMode === mode.id && styles.modeItemActive,
+                            ]}
+                            onPress={() => {
+                                onSelectMode(mode.id);
+                                onClose();
+                            }}
                         >
-                            <Text style={styles.modeIcon}>⏱️</Text>
-                            <Text style={styles.modeTitle}>Stopwatch</Text>
-                            <Text style={styles.modeDesc}>Count up from 0</Text>
+                            <Text style={styles.modeIcon}>{mode.icon}</Text>
+                            <View style={styles.modeInfo}>
+                                <Text style={[
+                                    styles.modeLabel,
+                                    currentMode === mode.id && styles.modeLabelActive
+                                ]}>
+                                    {mode.label}
+                                </Text>
+                                <Text style={styles.modeDesc}>{mode.desc}</Text>
+                            </View>
+                            {currentMode === mode.id && (
+                                <Text style={styles.checkIcon}>✓</Text>
+                            )}
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.modeButton}
-                            onPress={() => onSelectMode('pomodoro')}
-                        >
-                            <Text style={styles.modeIcon}>🍅</Text>
-                            <Text style={styles.modeTitle}>Pomodoro</Text>
-                            <Text style={styles.modeDesc}>25 min sessions</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.modeButton}
-                            onPress={() => onSelectMode('timelapse')}
-                        >
-                            <Text style={styles.modeIcon}>⏳</Text>
-                            <Text style={styles.modeTitle}>Timelapse</Text>
-                            <Text style={styles.modeDesc}>Custom duration</Text>
-                        </TouchableOpacity>
-                    </View>
+                    ))}
                 </View>
-            </View>
+            </TouchableOpacity>
         </Modal>
     );
 }
@@ -85,102 +75,64 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
-        alignItems: 'center',
         padding: Spacing.xl,
     },
-    modal: {
+    modalContent: {
         backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.md,
-        padding: Spacing.xl,
-        width: '100%',
-        maxWidth: 400,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 8,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.lg,
     },
     header: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
         justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: Spacing.lg,
     },
-    taskInfo: {
-        flex: 1,
-        flexDirection: 'row',
-        gap: Spacing.sm,
-    },
-    mitStar: {
-        fontSize: 20,
-    },
-    taskName: {
-        flex: 1,
-        fontSize: Typography.h2.fontSize,
+    title: {
+        fontSize: Typography.h3.fontSize,
         fontWeight: '600',
         color: Colors.text.primary,
-    },
-    closeButton: {
-        padding: Spacing.sm,
-        marginTop: -Spacing.sm,
-        marginRight: -Spacing.sm,
     },
     closeIcon: {
-        fontSize: 24,
-        color: Colors.text.tertiary,
-    },
-    goalBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
-        borderRadius: BorderRadius.full,
-        marginBottom: Spacing.xl,
-        gap: Spacing.sm,
-    },
-    goalDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    goalText: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
-        color: Colors.text.primary,
-    },
-    sectionTitle: {
-        fontSize: Typography.caption.fontSize,
-        fontWeight: '600',
+        fontSize: 20,
         color: Colors.text.secondary,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: Spacing.md,
+        padding: 4,
     },
-    modesContainer: {
-        gap: Spacing.md,
-    },
-    modeButton: {
+    modeItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.lg,
-        backgroundColor: Colors.background,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 2,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        marginBottom: Spacing.sm,
+        borderWidth: 1,
         borderColor: Colors.border.default,
-        gap: Spacing.md,
+    },
+    modeItemActive: {
+        borderColor: Colors.primary,
+        backgroundColor: Colors.primary + '10',
     },
     modeIcon: {
-        fontSize: 28,
+        fontSize: 24,
+        marginRight: Spacing.md,
     },
-    modeTitle: {
+    modeInfo: {
         flex: 1,
+    },
+    modeLabel: {
         fontSize: Typography.body.fontSize,
         fontWeight: '600',
         color: Colors.text.primary,
     },
+    modeLabelActive: {
+        color: Colors.primary,
+    },
     modeDesc: {
-        fontSize: Typography.caption.fontSize,
+        fontSize: Typography.small.fontSize,
         color: Colors.text.secondary,
+    },
+    checkIcon: {
+        fontSize: 20,
+        color: Colors.primary,
+        fontWeight: 'bold',
     },
 });
