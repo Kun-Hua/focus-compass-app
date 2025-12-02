@@ -7,9 +7,8 @@ export interface Goal {
     goal_description?: string;
     goal_category: 'Core' | 'Avoidance';
     linked_role?: string;
-    goal_tags?: string[];
     created_at: string;
-    updated_at: string;
+    display_order?: number;
 }
 
 export interface CreateGoalInput {
@@ -19,73 +18,63 @@ export interface CreateGoalInput {
     linked_role?: string;
 }
 
-export interface UpdateGoalInput {
-    goal_name?: string;
-    goal_description?: string;
-    goal_category?: 'Core' | 'Avoidance';
-    linked_role?: string;
-}
-
 export const goalsApi = {
-    // ?²å?ä½¿ç”¨?…ç??€?‰ç›®æ¨?
-    async getAll(userId: string): Promise<Goal[]> {
-        const { data, error } = await supabase
-            .from('Goal')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        return data || [];
-    },
-
-    // ?²å? Core ?®æ?ï¼ˆæ?å¤?5 ?‹ï?
     async getCoreGoals(userId: string): Promise<Goal[]> {
         const { data, error } = await supabase
             .from('Goal')
             .select('*')
             .eq('user_id', userId)
             .eq('goal_category', 'Core')
-            .order('created_at', { ascending: true })
-            .limit(5);
-
-        if (error) throw error;
-        return data || [];
-    },
-
-    // ?²å? Avoidance ?®æ?
-    async getAvoidanceGoals(userId: string): Promise<Goal[]> {
-        const { data, error } = await supabase
-            .from('Goal')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('goal_category', 'Avoidance')
+            .order('display_order', { ascending: true })
             .order('created_at', { ascending: true });
 
         if (error) throw error;
         return data || [];
     },
 
-    // å»ºç??®æ?
+    async getAvoidanceGoals(userId: string): Promise<Goal[]> {
+        const { data, error } = await supabase
+            .from('Goal')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('goal_category', 'Avoidance')
+            .order('display_order', { ascending: true })
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
+    },
+
     async create(userId: string, input: CreateGoalInput): Promise<Goal> {
+        // Get max order to append to end
+        const { data: maxOrderData } = await supabase
+            .from('Goal')
+            .select('display_order')
+            .eq('user_id', userId)
+            .eq('goal_category', input.goal_category)
+            .order('display_order', { ascending: false })
+            .limit(1)
+            .single();
+
+        const nextOrder = (maxOrderData?.display_order ?? 0) + 1;
+
         const { data, error } = await supabase
             .from('Goal')
             .insert({
                 user_id: userId,
                 ...input,
+                display_order: nextOrder
             })
             .select()
             .single();
-
         if (error) throw error;
         return data;
     },
 
-    // ?´æ–°?®æ?
-    async update(goalId: string, input: UpdateGoalInput): Promise<Goal> {
+    async update(goalId: string, updates: Partial<Goal>): Promise<Goal> {
         const { data, error } = await supabase
             .from('Goal')
-            .update(input)
+            .update(updates)
             .eq('goal_id', goalId)
             .select()
             .single();
@@ -94,7 +83,6 @@ export const goalsApi = {
         return data;
     },
 
-    // ?ªé™¤?®æ?
     async delete(goalId: string): Promise<void> {
         const { error } = await supabase
             .from('Goal')
@@ -103,5 +91,17 @@ export const goalsApi = {
 
         if (error) throw error;
     },
-};
 
+    async updateBatch(updates: { goal_id: string; display_order: number; goal_category: 'Core' | 'Avoidance' }[]): Promise<void> {
+        const { error } = await supabase
+            .from('Goal')
+            .upsert(updates.map(u => ({
+                goal_id: u.goal_id,
+                display_order: u.display_order,
+                goal_category: u.goal_category,
+                updated_at: new Date().toISOString()
+            })));
+
+        if (error) throw error;
+    }
+};

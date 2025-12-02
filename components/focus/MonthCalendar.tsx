@@ -8,16 +8,17 @@ interface MonthCalendarProps {
 }
 
 export default function MonthCalendar({ currentDate, onMonthChange }: MonthCalendarProps) {
-    const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const safeDate = currentDate || new Date();
+    const monthName = safeDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
     const handlePrevMonth = () => {
-        const newDate = new Date(currentDate);
+        const newDate = new Date(safeDate);
         newDate.setMonth(newDate.getMonth() - 1);
         onMonthChange(newDate);
     };
 
     const handleNextMonth = () => {
-        const newDate = new Date(currentDate);
+        const newDate = new Date(safeDate);
         newDate.setMonth(newDate.getMonth() + 1);
         onMonthChange(newDate);
     };

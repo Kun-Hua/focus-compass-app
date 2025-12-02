@@ -5,6 +5,7 @@ export interface Goal {
   goal_id: string;
   user_id: string;
   goal_name: string;
+  description?: string | null;
   goal_category: GoalCategory;
   linked_role: string | null;
   goal_tags: string[] | null;

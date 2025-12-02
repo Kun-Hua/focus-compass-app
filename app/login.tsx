@@ -17,26 +17,47 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-    const { signIn, signInWithGoogle } = useAuth();
+    const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isSignUp, setIsSignUp] = useState(false);
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
 
     const handleEmailLogin = async () => {
-        if (!email || !password) {
-            Alert.alert('Error', 'Please enter email and password');
+        if (!email) {
+            Alert.alert('Error', 'Please enter your email');
+            return;
+        }
+
+        if (!isForgotPassword && !password) {
+            Alert.alert('Error', 'Please enter your password');
             return;
         }
 
         setLoading(true);
-        const { error } = await signIn(email, password);
-        setLoading(false);
 
-        if (error) {
-            Alert.alert('Login Failed', error.message || 'Please try again');
-        } else {
-            router.replace('/(tabs)');
+        try {
+            if (isForgotPassword) {
+                const { error } = await resetPassword(email);
+                if (error) throw error;
+                Alert.alert('Success', 'Password reset instructions sent to your email');
+                setIsForgotPassword(false);
+            } else if (isSignUp) {
+                const { error } = await signUp(email, password);
+                if (error) throw error;
+                Alert.alert('Success', 'Account created! Please check your email to verify your account.');
+                setIsSignUp(false);
+            } else {
+                const { error } = await signIn(email, password);
+                if (error) throw error;
+                router.replace('/(tabs)');
+            }
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'An error occurred');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -63,8 +84,16 @@ export default function LoginScreen() {
                     {/* Logo */}
                     <View style={styles.logoContainer}>
                         <Text style={styles.logo}>🎯</Text>
-                        <Text style={styles.title}>Focus Compass</Text>
-                        <Text style={styles.subtitle}>Your productivity companion</Text>
+                        <Text style={styles.title}>
+                            {isForgotPassword ? 'Reset Password' : isSignUp ? 'Create Account' : 'Focus Compass'}
+                        </Text>
+                        <Text style={styles.subtitle}>
+                            {isForgotPassword
+                                ? 'Enter your email to receive reset instructions'
+                                : isSignUp
+                                    ? 'Join us to achieve your goals'
+                                    : 'Your productivity companion'}
+                        </Text>
                     </View>
 
                     {/* Login Form */}
@@ -79,15 +108,17 @@ export default function LoginScreen() {
                             autoCapitalize="none"
                             autoCorrect={false}
                         />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Password"
-                            placeholderTextColor={Colors.text.tertiary}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            autoCapitalize="none"
-                        />
+                        {!isForgotPassword && (
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Password"
+                                placeholderTextColor={Colors.text.tertiary}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry
+                                autoCapitalize="none"
+                            />
+                        )}
 
                         <TouchableOpacity
                             style={[styles.button, styles.primaryButton]}
@@ -97,31 +128,54 @@ export default function LoginScreen() {
                             {loading ? (
                                 <ActivityIndicator color={Colors.surface} />
                             ) : (
-                                <Text style={styles.primaryButtonText}>Sign In</Text>
+                                <Text style={styles.primaryButtonText}>
+                                    {isForgotPassword ? 'Send Reset Link' : isSignUp ? 'Sign Up' : 'Sign In'}
+                                </Text>
                             )}
                         </TouchableOpacity>
 
-                        <View style={styles.divider}>
-                            <View style={styles.dividerLine} />
-                            <Text style={styles.dividerText}>OR</Text>
-                            <View style={styles.dividerLine} />
-                        </View>
+                        {!isSignUp && !isForgotPassword && (
+                            <TouchableOpacity
+                                style={styles.forgotPasswordButton}
+                                onPress={() => setIsForgotPassword(true)}
+                            >
+                                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                            </TouchableOpacity>
+                        )}
 
-                        <TouchableOpacity
-                            style={[styles.button, styles.googleButton]}
-                            onPress={handleGoogleLogin}
-                            disabled={loading}
-                        >
-                            <Text style={styles.googleButtonText}>Continue with Google</Text>
-                        </TouchableOpacity>
+                        {!isForgotPassword && (
+                            <>
+                                <View style={styles.divider}>
+                                    <View style={styles.dividerLine} />
+                                    <Text style={styles.dividerText}>OR</Text>
+                                    <View style={styles.dividerLine} />
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[styles.button, styles.googleButton]}
+                                    onPress={handleGoogleLogin}
+                                    disabled={loading}
+                                >
+                                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
 
                     {/* Footer */}
                     <View style={styles.footer}>
-                        <Text style={styles.footerText}>
-                            Don't have an account?{' '}
-                            <Text style={styles.link}>Sign Up</Text>
-                        </Text>
+                        {isForgotPassword ? (
+                            <TouchableOpacity onPress={() => setIsForgotPassword(false)}>
+                                <Text style={styles.link}>Back to Login</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <Text style={styles.footerText}>
+                                {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+                                <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
+                                    <Text style={styles.link}>{isSignUp ? 'Sign In' : 'Sign Up'}</Text>
+                                </TouchableOpacity>
+                            </Text>
+                        )}
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -184,7 +238,7 @@ const styles = StyleSheet.create({
     primaryButton: {
         backgroundColor: Colors.primary,
         marginBottom: Spacing.lg,
-        ...Shadows.md,
+        ...Shadows.medium,
     },
     primaryButtonText: {
         fontSize: Typography.body.fontSize,
@@ -227,5 +281,13 @@ const styles = StyleSheet.create({
     link: {
         color: Colors.primary,
         fontWeight: '600',
+    },
+    forgotPasswordButton: {
+        alignSelf: 'center',
+        marginBottom: Spacing.lg,
+    },
+    forgotPasswordText: {
+        color: Colors.text.secondary,
+        fontSize: Typography.small.fontSize,
     },
 });

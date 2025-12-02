@@ -15,6 +15,7 @@ type AuthContextType = {
     signUp: (email: string, password: string) => Promise<{ error: any }>;
     signInWithGoogle: () => Promise<{ error: any }>;
     signOut: () => Promise<{ error: any }>;
+    resetPassword: (email: string) => Promise<{ error: any }>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
     signUp: async () => ({ error: null }),
     signInWithGoogle: async () => ({ error: null }),
     signOut: async () => ({ error: null }),
+    resetPassword: async () => ({ error: null }),
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -38,12 +40,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Check active sessions and sets the user
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            console.log('[AuthProvider] getSession result:', session ? 'Session found' : 'No session');
-            setSession(session);
-            setUser(session?.user ?? null);
-            setIsLoading(false);
-        });
+        const initSession = async () => {
+            try {
+                console.log('[AuthProvider] Starting getSession...');
+
+                // Add timeout to prevent hanging
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Session check timeout')), 10000)
+                );
+
+                const sessionPromise = supabase.auth.getSession();
+
+                const { data: { session }, error } = await Promise.race([
+                    sessionPromise,
+                    timeoutPromise
+                ]) as any;
+
+                if (error) throw error;
+
+                console.log('[AuthProvider] getSession result:', session ? 'Session found' : 'No session');
+                setSession(session);
+                setUser(session?.user ?? null);
+            } catch (error) {
+                console.error('[AuthProvider] Session check failed:', error);
+                // Set to null on error to allow app to proceed
+                setSession(null);
+                setUser(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        initSession();
 
         // Listen for changes on auth state (logged in, signed out, etc.)
         // Listen for changes on auth state (logged in, signed out, etc.)
@@ -100,6 +128,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signOut = async () => {
         const { error } = await supabase.auth.signOut();
         return { error };
+    };
+
+    const resetPassword = async (email: string) => {
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email);
+            if (error) throw error;
+            return { error: null };
+        } catch (err: any) {
+            console.error('[Auth] Reset password exception:', err);
+            return { error: err };
+        }
     };
 
     const signInWithGoogle = async () => {
@@ -169,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signInWithGoogle,
         signOut,
+        resetPassword,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

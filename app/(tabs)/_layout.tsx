@@ -22,14 +22,14 @@ export default function TabLayout() {
         },
       }}>
       <Tabs.Screen
-        name="dashboard"
+        name="index"
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="vision"
         options={{
           title: 'Vision',
           tabBarIcon: ({ color }) => <IconSymbol size={24} name="eye.fill" color={color} />,
@@ -43,17 +43,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="league"
-        options={{
-          title: 'League',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="trophy.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="partner"
         options={{
           title: 'Partner',
           tabBarIcon: ({ color }) => <IconSymbol size={24} name="person.2.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="league"
+        options={{
+          title: 'League',
+          tabBarIcon: ({ color }) => <IconSymbol size={24} name="trophy.fill" color={color} />,
         }}
       />
       <Tabs.Screen

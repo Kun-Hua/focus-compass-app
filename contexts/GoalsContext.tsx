@@ -101,9 +101,7 @@ export function GoalsProvider({ children, userId }: { children: React.ReactNode;
     const updatePlan = async (plan: GoalPlan) => {
         if (!userId) return;
         try {
-            await goalPlansApi.upsert({
-                user_id: userId,
-                goal_id: plan.goalId,
+            await goalPlansApi.upsert(plan.goalId, userId, {
                 annual_goal: plan.annualGoal,
                 quarterly_goal: plan.quarterlyGoal,
                 monthly_goal: plan.monthlyGoal,
