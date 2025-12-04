@@ -93,15 +93,36 @@ export const goalsApi = {
     },
 
     async updateBatch(updates: { goal_id: string; display_order: number; goal_category: 'Core' | 'Avoidance' }[]): Promise<void> {
-        const { error } = await supabase
-            .from('Goal')
-            .upsert(updates.map(u => ({
-                goal_id: u.goal_id,
-                display_order: u.display_order,
-                goal_category: u.goal_category,
-                updated_at: new Date().toISOString()
-            })));
+        console.log('[goalsApi.updateBatch] Starting batch update with:', JSON.stringify(updates, null, 2));
 
-        if (error) throw error;
+        // Use individual updates instead of upsert to avoid user_id null constraint issues
+        const updatePromises = updates.map(u =>
+            supabase
+                .from('Goal')
+                .update({
+                    display_order: u.display_order,
+                    goal_category: u.goal_category,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('goal_id', u.goal_id)
+        );
+
+        const results = await Promise.all(updatePromises);
+
+        console.log('[goalsApi.updateBatch] Update results:', results.map((r, i) => ({
+            goal_id: updates[i].goal_id,
+            success: !r.error,
+            error: r.error?.message,
+            data: r.data
+        })));
+
+        // Check for any errors
+        const errors = results.filter(r => r.error);
+        if (errors.length > 0) {
+            console.error('[goalsApi.updateBatch] Errors detected:', errors.map(e => e.error));
+            throw errors[0].error;
+        }
+
+        console.log('[goalsApi.updateBatch] Batch update completed successfully');
     }
 };

@@ -7,6 +7,7 @@ import { goalsApi } from '@/services/goalsApi';
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Define interfaces locally if not imported
@@ -15,15 +16,6 @@ interface UIGoal {
     name: string;
     description?: string;
     status: 'core' | 'avoid';
-}
-
-interface GoalPlan {
-    goalId: string;
-    annualGoal: string;
-    quarterlyGoal: string;
-    monthlyGoal: string;
-    weeklyGoal: string;
-    weeklyCommitmentHours: number;
 }
 
 export default function VisionScreen() {
@@ -106,129 +98,185 @@ export default function VisionScreen() {
         }
     };
 
-    const onDragEnd = async ({ data }: { data: UIGoal[] }) => {
-        // Find the index of the Avoidance Header
+    const validatePosition = (data: UIGoal[], draggedIndex: number): boolean => {
+        const coreHeaderIndex = data.findIndex(item => item.id === 'header-core');
         const avoidHeaderIndex = data.findIndex(item => item.id === 'header-avoid');
+        const draggedItem = data[draggedIndex];
+
+        // Skip validation for headers and empty states
+        if (draggedItem.id.startsWith('header-') || draggedItem.id.startsWith('empty-')) {
+            return true;
+        }
+
+        // Real goal items cannot be before or at the core header
+        if (draggedIndex <= coreHeaderIndex) {
+            return false;
+        }
+
+        // Real goal items cannot be at the avoid header position
+        if (draggedIndex === avoidHeaderIndex) {
+            return false;
+        }
+
+        return true;
+    };
+
+    const onDragEnd = async ({ data, from, to }: { data: UIGoal[]; from: number; to: number }) => {
+        // Quick validation
+        if (!validatePosition(data, to)) {
+            Alert.alert('Invalid Position', 'Goals cannot be moved above section headers');
+            await loadData();
+            return;
+        }
 
         const updates: { goal_id: string; display_order: number; goal_category: 'Core' | 'Avoidance' }[] = [];
-        const newGoals = [...data];
 
-        let currentOrder = 0;
+        let coreOrder = 0;
+        let avoidOrder = 0;
         let currentCategory: 'Core' | 'Avoidance' = 'Core';
 
         data.forEach((item) => {
-            if (item.id === 'header-core') {
-                currentCategory = 'Core';
-                return;
-            }
-            if (item.id === 'header-avoid') {
-                currentCategory = 'Avoidance';
+            // Skip headers and empty states
+            if (item.id.startsWith('header-') || item.id.startsWith('empty-')) {
+                if (item.id === 'header-avoid') {
+                    currentCategory = 'Avoidance';
+                }
                 return;
             }
 
-            // It's a goal item
-            currentOrder++;
-
-            // Check if category changed
-            if (item.status !== currentCategory.toLowerCase()) {
-                // Update local item status for immediate feedback
-                item.status = currentCategory.toLowerCase() as 'core' | 'avoid';
-            }
+            const displayOrder = currentCategory === 'Core' ? ++coreOrder : ++avoidOrder;
 
             updates.push({
                 goal_id: item.id,
-                display_order: currentOrder,
+                display_order: displayOrder,
                 goal_category: currentCategory
             });
         });
 
-        setGoals(newGoals.filter(g => !g.id.startsWith('header-'))); // Optimistic update, filter out headers
-
         try {
             await goalsApi.updateBatch(updates);
+            await loadData();
         } catch (err: any) {
-            console.error('Failed to update order:', err);
+            console.error('[onDragEnd] Failed to update order:', err);
             Alert.alert('Reorder Failed', 'Failed to save new order');
-            loadData(); // Revert
+            loadData();
         }
     };
 
     const renderItem = ({ item, drag, isActive }: RenderItemParams<UIGoal>) => {
-        if (item.id.startsWith('header-')) {
+        // Render Core Goals header (non-draggable)
+        if (item.id === 'header-core') {
             return (
-                <View style={styles.headerContainer}>
-                    <Text style={styles.headerTitle}>
-                        {item.id === 'header-core' ? 'Core Goals' : 'Avoidance Goals'}
-                    </Text>
-                    {item.id === 'header-core' && (
+                <View style={styles.sectionHeaderWrapper} pointerEvents="box-only">
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Core Goals</Text>
                         <TouchableOpacity onPress={() => setAddModalVisible(true)}>
                             <Text style={styles.addButtonIcon}>+</Text>
                         </TouchableOpacity>
-                    )}
+                    </View>
                 </View>
             );
         }
 
+        // Render Avoidance Goals header (non-draggable)
+        if (item.id === 'header-avoid') {
+            return (
+                <View style={styles.sectionHeaderWrapper} pointerEvents="box-only">
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Avoidance Goals</Text>
+                    </View>
+                </View>
+            );
+        }
+
+        // Render empty state for Core Goals (non-draggable)
+        if (item.id === 'empty-core') {
+            return (
+                <View style={styles.emptyStateWrapper} pointerEvents="box-only">
+                    <View style={styles.emptyState}>
+                        <Text style={styles.emptyText}>No core goals yet</Text>
+                    </View>
+                </View>
+            );
+        }
+
+        // Render empty state for Avoidance Goals (non-draggable)
+        if (item.id === 'empty-avoid') {
+            return (
+                <View style={styles.emptyStateWrapper} pointerEvents="box-only">
+                    <View style={styles.emptyState}>
+                        <Text style={styles.emptyText}>No avoidance goals yet</Text>
+                    </View>
+                </View>
+            );
+        }
+
+        // Render draggable goal item
         return (
-            <DraggableGoalItem
-                item={item}
-                drag={drag}
-                isActive={isActive}
-                onEdit={(goal) => setEditingGoal(goal)}
-                onDelete={(goal) => handleDeleteGoal(goal.id)}
-                onLongPress={drag}
-            />
+            <View style={styles.goalItemContainer}>
+                <DraggableGoalItem
+                    item={item}
+                    drag={drag}
+                    isActive={isActive}
+                    onEdit={(goal) => setEditingGoal(goal)}
+                    onDelete={(goal) => handleDeleteGoal(goal.id)}
+                    onLongPress={drag}
+                />
+            </View>
         );
     };
 
-    // Prepare data with headers
-    // We need to filter out headers from state if they exist to avoid duplication
-    const cleanGoals = goals.filter(g => !g.id.startsWith('header-'));
+    const cleanGoals = goals.filter(g => !g.id.startsWith('separator-') && !g.id.startsWith('header-') && !g.id.startsWith('empty-'));
+    const coreGoals = cleanGoals.filter(g => g.status === 'core');
+    const avoidGoals = cleanGoals.filter(g => g.status === 'avoid');
 
     const listData = [
-        { id: 'header-core', name: 'Core Goals', status: 'core' as const },
-        ...cleanGoals.filter(g => g.status === 'core'),
-        { id: 'header-avoid', name: 'Avoidance Goals', status: 'avoid' as const },
-        ...cleanGoals.filter(g => g.status === 'avoid'),
+        { id: 'header-core', name: '', status: 'core' as const },
+        ...(coreGoals.length > 0 ? coreGoals : [{ id: 'empty-core', name: '', status: 'core' as const }]),
+        { id: 'header-avoid', name: '', status: 'avoid' as const },
+        ...(avoidGoals.length > 0 ? avoidGoals : [{ id: 'empty-avoid', name: '', status: 'avoid' as const }]),
     ];
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Vision</Text>
-            </View>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={styles.header}>
+                    <Text style={styles.title}>Vision</Text>
+                </View>
 
-            {error && (
-                <TouchableOpacity onPress={loadData} style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error} - Tap to retry</Text>
-                </TouchableOpacity>
-            )}
+                {error && (
+                    <TouchableOpacity onPress={loadData} style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{error} - Tap to retry</Text>
+                    </TouchableOpacity>
+                )}
 
-            <DraggableFlatList
-                data={listData}
-                onDragEnd={onDragEnd}
-                keyExtractor={(item) => item.id}
-                renderItem={renderItem}
-                containerStyle={styles.listContainer}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+                <View style={styles.listContainer}>
+                    <DraggableFlatList
+                        data={listData}
+                        onDragEnd={onDragEnd}
+                        keyExtractor={(item) => item.id}
+                        renderItem={renderItem}
+                        contentContainerStyle={styles.listContent}
+                        showsVerticalScrollIndicator={false}
+                    />
+                </View>
 
-            <AddGoalModal
-                visible={isAddModalVisible}
-                onClose={() => setAddModalVisible(false)}
-                onAdd={handleAddGoal}
-            />
+                <AddGoalModal
+                    visible={isAddModalVisible}
+                    onClose={() => setAddModalVisible(false)}
+                    onAdd={handleAddGoal}
+                />
 
-            <EditGoalModal
-                visible={!!editingGoal}
-                goal={editingGoal}
-                userId={user?.id || null}
-                onClose={() => setEditingGoal(null)}
-                onSave={handleUpdateGoal}
-                onDelete={handleDeleteGoal}
-            />
-        </SafeAreaView>
+                <EditGoalModal
+                    visible={!!editingGoal}
+                    goal={editingGoal}
+                    userId={user?.id || null}
+                    onClose={() => setEditingGoal(null)}
+                    onSave={handleUpdateGoal}
+                    onDelete={handleDeleteGoal}
+                />
+            </SafeAreaView>
+        </GestureHandlerRootView>
     );
 }
 
@@ -255,15 +303,18 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.xl,
         paddingBottom: Spacing.xl,
     },
-    headerContainer: {
+    sectionHeaderWrapper: {
+        // Wrapper to prevent dragging
+    },
+    sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: Spacing.lg,
-        marginBottom: Spacing.md,
-        backgroundColor: Colors.background,
+        marginBottom: Spacing.sm,
+        marginTop: Spacing.md,
+        paddingVertical: Spacing.xs,
     },
-    headerTitle: {
+    sectionTitle: {
         fontSize: Typography.h3.fontSize,
         fontWeight: '600',
         color: Colors.text.primary,
@@ -272,6 +323,24 @@ const styles = StyleSheet.create({
         fontSize: 24,
         color: Colors.primary,
         fontWeight: '300',
+    },
+    emptyStateWrapper: {
+        // Wrapper to prevent dragging
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: Spacing.xl,
+        backgroundColor: Colors.surface + '40',
+        borderRadius: 12,
+        marginBottom: Spacing.md,
+    },
+    emptyText: {
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.secondary,
+    },
+    goalItemContainer: {
+        marginBottom: Spacing.sm,
     },
     errorContainer: {
         margin: Spacing.md,

@@ -55,7 +55,7 @@ export default function DraggableGoalItem({ item, drag, isActive, onEdit, onDele
                         </TouchableOpacity>
                         <TouchableOpacity
                             onLongPress={drag}
-                            delayLongPress={100}
+                            delayLongPress={300}
                             style={styles.dragHandle}
                         >
                             <Text style={styles.dragIcon}>☰</Text>
