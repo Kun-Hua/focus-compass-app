@@ -25,16 +25,21 @@ export default function VisionScreen() {
     const [editingGoal, setEditingGoal] = useState<UIGoal | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [listKey, setListKey] = useState(0);
 
     const loadData = async () => {
         if (!user) return;
         setLoading(true);
         setError(null);
         try {
+            console.log('[loadData] Starting to load goals...');
             const [core, avoid] = await Promise.all([
                 goalsApi.getCoreGoals(user.id),
                 goalsApi.getAvoidanceGoals(user.id),
             ]);
+
+            console.log('[loadData] Raw core goals from DB:', core.map(g => ({ id: g.goal_id, name: g.goal_name, order: g.display_order })));
+            console.log('[loadData] Raw avoid goals from DB:', avoid.map(g => ({ id: g.goal_id, name: g.goal_name, order: g.display_order })));
 
             const coreUiGoals: UIGoal[] = core.map(g => ({
                 id: g.goal_id,
@@ -50,6 +55,7 @@ export default function VisionScreen() {
                 status: 'avoid',
             }));
 
+            console.log('[loadData] Setting goals state with:', { coreCount: coreUiGoals.length, avoidCount: avoidUiGoals.length });
             setGoals([...coreUiGoals, ...avoidUiGoals]);
         } catch (err: any) {
             console.error('[VisionScreen] Failed to load data:', err);
@@ -98,60 +104,85 @@ export default function VisionScreen() {
         }
     };
 
-    const validatePosition = (data: UIGoal[], draggedIndex: number): boolean => {
-        const coreHeaderIndex = data.findIndex(item => item.id === 'header-core');
-        const avoidHeaderIndex = data.findIndex(item => item.id === 'header-avoid');
-        const draggedItem = data[draggedIndex];
-
-        // Skip validation for headers and empty states
-        if (draggedItem.id.startsWith('header-') || draggedItem.id.startsWith('empty-')) {
-            return true;
-        }
-
-        // Real goal items cannot be before or at the core header
-        if (draggedIndex <= coreHeaderIndex) {
-            return false;
-        }
-
-        // Real goal items cannot be at the avoid header position
-        if (draggedIndex === avoidHeaderIndex) {
-            return false;
-        }
-
-        return true;
-    };
-
     const onDragEnd = async ({ data, from, to }: { data: UIGoal[]; from: number; to: number }) => {
-        // Quick validation
-        if (!validatePosition(data, to)) {
-            Alert.alert('Invalid Position', 'Goals cannot be moved above section headers');
+        console.log('=== DRAG DEBUG ===');
+        console.log(`From: ${from}, To: ${to}`);
+
+        const draggedItem = data[to];  // data is reordered, so dragged item is now at 'to'
+        const targetItem = data[from]; // item that shifted into the old position
+        console.log(`Dragged Item (at to=${to}):`, draggedItem);
+        console.log(`Item at from=${from}:`, targetItem);
+
+        // Prevent dragging headers and empty states
+        if (draggedItem.id.startsWith('header-') || draggedItem.id.startsWith('empty-')) {
+            console.log('REJECTED: Trying to drag header or empty state');
             await loadData();
+            setListKey(prev => prev + 1);
             return;
         }
 
+        // Find header positions in the NEW data array (after drag)
+        const coreHeaderIndex = data.findIndex(item => item.id === 'header-core');
+        const avoidHeaderIndex = data.findIndex(item => item.id === 'header-avoid');
+
+        console.log(`Core Header Index: ${coreHeaderIndex}, Avoid Header Index: ${avoidHeaderIndex}`);
+        console.log(`Data:`, data.map((item, idx) => ({ idx, id: item.id, name: item.name })));
+
+        // Validate positions based on header locations
+        // Valid positions: (coreHeaderIndex, avoidHeaderIndex) or (avoidHeaderIndex, end)
+        const isInCoreSection = to > coreHeaderIndex && to < avoidHeaderIndex;
+        const isInAvoidSection = to > avoidHeaderIndex;
+
+        if (!isInCoreSection && !isInAvoidSection) {
+            console.log(`REJECTED: Position ${to} is not valid. Must be between headers or after avoid header`);
+            Alert.alert('Invalid Position', 'Goals must be placed within a section');
+            await loadData();
+            setListKey(prev => prev + 1);
+            return;
+        }
+
+        console.log(`VALIDATION PASSED - Position ${to} is valid (Core: ${isInCoreSection}, Avoid: ${isInAvoidSection})`);
+
+        // NEW LOGIC: Assign category based on position
+        // Between core header and avoid header = Core
+        // After avoid header = Avoidance
         const updates: { goal_id: string; display_order: number; goal_category: 'Core' | 'Avoidance' }[] = [];
 
         let coreOrder = 0;
         let avoidOrder = 0;
-        let currentCategory: 'Core' | 'Avoidance' = 'Core';
 
-        data.forEach((item) => {
+        data.forEach((item, index) => {
             // Skip headers and empty states
             if (item.id.startsWith('header-') || item.id.startsWith('empty-')) {
-                if (item.id === 'header-avoid') {
-                    currentCategory = 'Avoidance';
-                }
                 return;
             }
 
-            const displayOrder = currentCategory === 'Core' ? ++coreOrder : ++avoidOrder;
+            // Determine category based on position
+            let category: 'Core' | 'Avoidance';
+            let displayOrder: number;
+
+            if (index > coreHeaderIndex && index < avoidHeaderIndex) {
+                // Between core and avoid headers = Core goal
+                category = 'Core';
+                displayOrder = ++coreOrder;
+            } else if (index > avoidHeaderIndex) {
+                // After avoid header = Avoidance goal
+                category = 'Avoidance';
+                displayOrder = ++avoidOrder;
+            } else {
+                // This shouldn't happen due to validation, but handle it
+                console.warn(`Unexpected position for item ${item.id} at index ${index}`);
+                return;
+            }
 
             updates.push({
                 goal_id: item.id,
                 display_order: displayOrder,
-                goal_category: currentCategory
+                goal_category: category
             });
         });
+
+        console.log('Updates to apply:', updates);
 
         try {
             await goalsApi.updateBatch(updates);
@@ -230,12 +261,18 @@ export default function VisionScreen() {
     const coreGoals = cleanGoals.filter(g => g.status === 'core');
     const avoidGoals = cleanGoals.filter(g => g.status === 'avoid');
 
+    console.log('[listData] goals state:', goals.map(g => ({ id: g.id, name: g.name, status: g.status })));
+    console.log('[listData] coreGoals:', coreGoals.map(g => ({ id: g.id, name: g.name })));
+    console.log('[listData] avoidGoals:', avoidGoals.map(g => ({ id: g.id, name: g.name })));
+
     const listData = [
         { id: 'header-core', name: '', status: 'core' as const },
         ...(coreGoals.length > 0 ? coreGoals : [{ id: 'empty-core', name: '', status: 'core' as const }]),
         { id: 'header-avoid', name: '', status: 'avoid' as const },
         ...(avoidGoals.length > 0 ? avoidGoals : [{ id: 'empty-avoid', name: '', status: 'avoid' as const }]),
     ];
+
+    console.log('[listData] Final listData:', listData.map(item => ({ id: item.id, name: item.name, status: item.status })));
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
@@ -252,6 +289,7 @@ export default function VisionScreen() {
 
                 <View style={styles.listContainer}>
                     <DraggableFlatList
+                        key={listKey}
                         data={listData}
                         onDragEnd={onDragEnd}
                         keyExtractor={(item) => item.id}
