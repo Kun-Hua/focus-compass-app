@@ -124,5 +124,21 @@ export const goalsApi = {
         }
 
         console.log('[goalsApi.updateBatch] Batch update completed successfully');
+    },
+
+    async getGoalPlans(userId: string): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('commitment_goal_plans_v3')
+            .select(`
+                *,
+                Goal (
+                    goal_name,
+                    goal_category
+                )
+            `)
+            .eq('user_id', userId);
+
+        if (error) throw error;
+        return data || [];
     }
 };

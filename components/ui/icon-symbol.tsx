@@ -1,7 +1,7 @@
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
+import { SymbolViewProps, SymbolWeight } from 'expo-symbols';
 import { ComponentProps } from 'react';
 import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
@@ -18,6 +18,16 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  // New Icons for Calendar & Focus
+  'calendar': 'calendar-today',
+  'timer': 'timer',
+  'eye.fill': 'visibility',
+  'person.2.fill': 'people',
+  'trophy.fill': 'emoji-events',
+  'gear': 'settings',
+  'clock.fill': 'schedule',
+  'play': 'play-arrow',
+  'add-circle': 'add-circle',
 } as IconMapping;
 
 /**

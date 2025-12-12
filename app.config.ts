@@ -11,13 +11,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon: './assets/images/icon.png',
     scheme: 'focuscompassapp',
     userInterfaceStyle: 'automatic',
-    newArchEnabled: true,
+    newArchEnabled: false,
     ios: {
       ...config.ios,
       supportsTablet: true,
     },
     android: {
       ...config.android,
+      package: 'com.albert7463.focuscompassapp',
+      // Required for timelapse video recording with audio
+      permissions: ['RECORD_AUDIO'],
       adaptiveIcon: {
         backgroundColor: '#E6F4FE',
         foregroundImage: './assets/images/android-icon-foreground.png',
@@ -34,6 +37,30 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       'expo-router',
+      'expo-secure-store',
+      'expo-web-browser',
+      [
+        'expo-camera',
+        {
+          cameraPermission: 'Allow $(PRODUCT_NAME) to access your camera for timelapse recording.',
+          microphonePermission: 'Allow $(PRODUCT_NAME) to access your microphone for video recording.',
+          recordAudioAndroid: true,
+        },
+      ],
+      [
+        'expo-media-library',
+        {
+          photosPermission: 'Allow $(PRODUCT_NAME) to access your photos to save timelapse videos.',
+          savePhotosPermission: 'Allow $(PRODUCT_NAME) to save timelapse videos to your gallery.',
+          isAccessMediaLocationEnabled: true,
+        },
+      ],
+      [
+        'expo-av',
+        {
+          microphonePermission: 'Allow $(PRODUCT_NAME) to access your microphone.',
+        },
+      ],
       [
         'expo-splash-screen',
         {
@@ -54,6 +81,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     extra: {
       ...config.extra,
+      eas: {
+        projectId: '2e345126-2e57-42c4-89f7-96aa140320ba',
+      },
       SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
       SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
     },

@@ -36,10 +36,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color }) => <IconSymbol size={24} name="calendar" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="focus"
         options={{
           title: 'Focus',
           tabBarIcon: ({ color }) => <IconSymbol size={24} name="timer" color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen

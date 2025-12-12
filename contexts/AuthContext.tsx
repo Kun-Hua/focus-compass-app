@@ -75,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Listen for changes on auth state (logged in, signed out, etc.)
         // Listen for changes on auth state (logged in, signed out, etc.)
+        // Listen for changes on auth state (logged in, signed out, etc.)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             console.log('[AuthProvider] onAuthStateChange event:', _event);
             setSession(session);
@@ -82,7 +83,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
         });
 
-        return () => subscription.unsubscribe();
+        // Handle deep links (fallback for OAuth)
+        const handleDeepLink = async (event: { url: string }) => {
+            const url = event.url;
+            console.log('[AuthProvider] Received deep link:', url);
+
+            // In Expo Go, the scheme is exp://, in builds it's focuscompassapp://
+            // We shouldn't strictly filter by scheme for the listener, but rather check for tokens
+
+            // Helper to parsing params from hash or query
+            const extractTokens = (linkUrl: string) => {
+                const cleanUrl = linkUrl.replace('#', '?');
+                const params = new URLSearchParams(cleanUrl.split('?')[1]);
+                return {
+                    access_token: params.get('access_token'),
+                    refresh_token: params.get('refresh_token'),
+                };
+            };
+
+            const { access_token, refresh_token } = extractTokens(url);
+
+            if (access_token && refresh_token) {
+                console.log('[AuthProvider] Tokens found in deep link, setting session...');
+                const { error } = await supabase.auth.setSession({
+                    access_token,
+                    refresh_token,
+                });
+                if (error) console.error('[AuthProvider] Error setting session:', error);
+                else {
+                    console.log('[AuthProvider] Session set from deep link');
+                    // Explicitly fetch user to ensure state updates
+                    const { data } = await supabase.auth.getUser();
+                    if (data.user) setUser(data.user);
+                }
+            } else {
+                console.log('[AuthProvider] No tokens in deep link');
+            }
+        };
+
+        const subscriptionUrl = Linking.addEventListener('url', handleDeepLink);
+
+        // Check initial URL
+        Linking.getInitialURL().then((url) => {
+            if (url) handleDeepLink({ url });
+        });
+
+        return () => {
+            subscription.unsubscribe();
+            subscriptionUrl.remove();
+        };
     }, []);
 
 
