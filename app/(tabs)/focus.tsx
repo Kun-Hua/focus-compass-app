@@ -1,23 +1,17 @@
 import InterruptionModal from '@/components/focus/InterruptionModal';
 import PomodoroSettingsModal, { PomodoroSettings } from '@/components/focus/PomodoroSettingsModal';
+import TimelapseHistoryModal from '@/components/focus/TimelapseHistoryModal';
 import TimerModeModal from '@/components/focus/TimerModeModal';
 import TimerView from '@/components/focus/TimerView';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import { useAuth } from '@/contexts/AuthContext';
 import { focusApi } from '@/services/focusApi';
 import { goalsApi } from '@/services/goalsApi';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { formatDuration } from '../../utils/time';
 
 interface Goal {
     id: string;
@@ -40,6 +34,7 @@ export default function FocusScreen() {
     const [timerMode, setTimerMode] = useState<TimerMode>('Stopwatch');
     const [isTimerActive, setIsTimerActive] = useState(false);
     const [sessionDuration, setSessionDuration] = useState(0);
+    const [sessionVideoUri, setSessionVideoUri] = useState<string | null>(null);
 
     // Honesty mode
     const [honestyMode, setHonestyMode] = useState(false);
@@ -48,6 +43,7 @@ export default function FocusScreen() {
     const [showModeModal, setShowModeModal] = useState(false);
     const [showInterruptionModal, setShowInterruptionModal] = useState(false);
     const [showPomodoroSettings, setShowPomodoroSettings] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     // Pomodoro settings
     const [pomodoroSettings, setPomodoroSettings] = useState<PomodoroSettings>({
@@ -79,7 +75,6 @@ export default function FocusScreen() {
             setGoals(mappedGoals);
 
             // Auto-select first goal if none selected
-            // We use functional update or check current state
             setSelectedGoal(current => {
                 if (mappedGoals.length > 0 && !current) {
                     console.log('[FocusScreen] loadGoals: Auto-selecting first goal', mappedGoals[0].name);
@@ -94,7 +89,7 @@ export default function FocusScreen() {
         } finally {
             setLoadingGoals(false);
         }
-    }, [user]); // Removed selectedGoal from dependencies to prevent loops
+    }, [user]);
 
     useEffect(() => {
         console.log('[FocusScreen] useEffect: Calling loadGoals');
@@ -102,9 +97,10 @@ export default function FocusScreen() {
     }, [loadGoals]);
 
     // Handle timer completion
-    const handleTimerComplete = (durationSeconds: number) => {
-        console.log('[FocusScreen] handleTimerComplete:', durationSeconds);
+    const handleTimerComplete = (durationSeconds: number, videoUri?: string | null) => {
+        console.log('[FocusScreen] handleTimerComplete:', durationSeconds, videoUri);
         setSessionDuration(durationSeconds);
+        setSessionVideoUri(videoUri || null);
         setIsTimerActive(false);
         setShowInterruptionModal(true);
     };
@@ -125,26 +121,39 @@ export default function FocusScreen() {
         }
 
         try {
-            const durationMinutes = Math.floor(sessionDuration / 60);
+            const durationSeconds = sessionDuration;
+            let videoPath: string | null = null;
+
+            // Upload video if present
+            if (sessionVideoUri) {
+                console.log('[FocusScreen] Uploading video...', sessionVideoUri);
+                // Ideally show a progress indicator here, but for now we'll just block
+                videoPath = await focusApi.uploadVideo(user.id, sessionVideoUri);
+            }
+
             console.log('[FocusScreen] Saving focus session:', {
-                durationMinutes,
+                durationSeconds,
                 honestyMode,
-                goalId: selectedGoal.id
+                goalId: selectedGoal.id,
+                videoPath
             });
 
             await focusApi.create({
                 user_id: user.id,
                 goal_id: selectedGoal.id,
-                duration_minutes: durationMinutes,
+                duration_seconds: durationSeconds,
                 honesty_mode: honestyMode,
                 interruption_reason: data.interruptionReason,
                 interruption_count: data.interruptionCount,
+                mode: timerMode,
+                video_path: videoPath,
             });
 
             setShowInterruptionModal(false);
             setSessionDuration(0);
+            setSessionVideoUri(null);
 
-            Alert.alert('Session Saved', `${durationMinutes} minutes recorded!`);
+            Alert.alert('Session Saved', `${formatDuration(durationSeconds)} recorded!${videoPath ? ' Video uploaded.' : ''}`);
         } catch (err: any) {
             console.error('[FocusScreen] Failed to save session:', err);
             Alert.alert('Save Failed', err.message || 'Unable to save focus record');
@@ -206,9 +215,14 @@ export default function FocusScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.title}>Focus</Text>
-                    <TouchableOpacity onPress={() => setShowModeModal(true)}>
-                        <Text style={styles.modeButton}>{timerMode} ▾</Text>
-                    </TouchableOpacity>
+                    <View style={styles.headerControls}>
+                        <TouchableOpacity onPress={() => setShowHistoryModal(true)} style={styles.iconButton}>
+                            <Ionicons name="time-outline" size={24} color={Colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowModeModal(true)}>
+                            <Text style={styles.modeButton}>{timerMode} ▾</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Goal Selection */}
@@ -333,6 +347,12 @@ export default function FocusScreen() {
                 onClose={() => setShowPomodoroSettings(false)}
                 onSave={setPomodoroSettings}
             />
+
+            {/* Timelapse History Modal */}
+            <TimelapseHistoryModal
+                visible={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+            />
         </SafeAreaView>
     );
 }
@@ -372,6 +392,14 @@ const styles = StyleSheet.create({
         fontSize: Typography.h1.fontSize,
         fontWeight: Typography.h1.fontWeight,
         color: Colors.text.primary,
+    },
+    headerControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+    },
+    iconButton: {
+        padding: Spacing.sm,
     },
     modeButton: {
         fontSize: Typography.body.fontSize,

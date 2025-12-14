@@ -80,7 +80,9 @@ export default function WeeklyView({ currentWeek, onWeekChange, onAddTodo, onTod
 
     // Group todos by day and time
     const getTodosForDayAndHour = (date: Date, hour: number) => {
-        const dateStr = date.toISOString().split('T')[0];
+        // Format date string locally YYYY-MM-DD
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
         return todos.filter(t => {
             if (t.due_date !== dateStr) return false;
             if (t.is_all_day) return false; // All-day shown separately
@@ -92,7 +94,7 @@ export default function WeeklyView({ currentWeek, onWeekChange, onAddTodo, onTod
     };
 
     const getAllDayTodosForDay = (date: Date) => {
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         return todos.filter(t => t.due_date === dateStr && t.is_all_day);
     };
 

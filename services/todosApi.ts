@@ -16,8 +16,8 @@ export interface Todo {
 export const todosApi = {
     // Get todos for a specific date
     async getTodosByDate(userId: string, date: Date): Promise<Todo[]> {
-        // Format date as YYYY-MM-DD
-        const dateStr = date.toISOString().split('T')[0];
+        // Format date as YYYY-MM-DD (Local Time)
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
         const { data, error } = await supabase
             .from('Todos')
@@ -44,8 +44,10 @@ export const todosApi = {
         endDate.setDate(startDate.getDate() + 6);
         endDate.setHours(23, 59, 59, 999);
 
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        endDate.setHours(23, 59, 59, 999);
+
+        const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+        const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
         const { data, error } = await supabase
             .from('Todos')
@@ -73,8 +75,10 @@ export const todosApi = {
         const endDate = new Date(year, month, 0); // Last day of month
         endDate.setHours(23, 59, 59, 999);
 
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        endDate.setHours(23, 59, 59, 999);
+
+        const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+        const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
         const { data, error } = await supabase
             .from('Todos')
@@ -106,7 +110,8 @@ export const todosApi = {
         endTime?: Date | null;
         isAllDay?: boolean;
     }): Promise<Todo> {
-        const dateStr = (todo.dueDate || new Date()).toISOString().split('T')[0];
+        const d = todo.dueDate || new Date();
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const isAllDay = todo.isAllDay ?? true;
 
         const { data, error } = await supabase
@@ -142,7 +147,11 @@ export const todosApi = {
 
         if (updates.title !== undefined) payload.title = updates.title;
         if (updates.goalId !== undefined) payload.goal_id = updates.goalId;
-        if (updates.dueDate !== undefined) payload.due_date = updates.dueDate.toISOString().split('T')[0];
+        if (updates.goalId !== undefined) payload.goal_id = updates.goalId;
+        if (updates.dueDate !== undefined) {
+            const d = updates.dueDate;
+            payload.due_date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
         if (updates.completed !== undefined) payload.completed = updates.completed;
         if (updates.isAllDay !== undefined) {
             payload.is_all_day = updates.isAllDay;

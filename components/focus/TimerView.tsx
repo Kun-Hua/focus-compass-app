@@ -1,8 +1,22 @@
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+// Use legacy API to avoid deprecation errors in Expo SDK 52+
+// @ts-ignore
+import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { formatDuration } from '../../utils/time';
+import {
+    calculateVideoDuration,
+    cleanupFrames,
+    getFrameFilename,
+    getFramesDirectory,
+    getOutputVideoPath,
+    synthesizeVideo
+} from '../../utils/timelapse';
 
 // Pomodoro settings interface
 export interface PomodoroSettings {
@@ -22,7 +36,7 @@ interface TimerViewProps {
     mode: 'Pomodoro' | 'Stopwatch' | 'Timelapse';
     taskName: string;
     goalColor: string;
-    onComplete: (duration: number) => void;
+    onComplete: (duration: number, videoUri?: string | null) => void;
     onCancel: () => void;
     pomodoroSettings?: PomodoroSettings;
 }
@@ -38,6 +52,7 @@ export default function TimerView({
     // Common state
     const [totalElapsedSeconds, setTotalElapsedSeconds] = useState(0);
     const [isActive, setIsActive] = useState(false);
+    const [isSessionComplete, setIsSessionComplete] = useState(false);
 
     // Pomodoro state
     const [pomodoroPhase, setPomodoroPhase] = useState<'focus' | 'break'>('focus');
@@ -51,9 +66,26 @@ export default function TimerView({
     const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
     const [mediaPermissionGranted, setMediaPermissionGranted] = useState(false);
     const cameraRef = useRef<CameraView>(null);
-    const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+
+    // Frame capture state (TRUE TIMELAPSE)
+    const [isCapturing, setIsCapturing] = useState(false);
+    const [frameCount, setFrameCount] = useState(0); // Kept for logic if needed, but not updated in loop to avoid flicker
+    const frameCountRef = useRef(0);
+    const [isSynthesizing, setIsSynthesizing] = useState(false);
+    const [synthesisProgress, setSynthesisProgress] = useState('');
+    const framesDirRef = useRef<string | null>(null);
+    const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
     const [recordedVideoUri, setRecordedVideoUri] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
+    const [isStopLocked, setIsStopLocked] = useState(false); // Safety lock state
+    // Frame processing lock to prevent race conditions
+    const isProcessingFrameRef = useRef(false);
+    const isCapturingRef = useRef(false);
+    const captureFrameRef = useRef<(() => void) | null>(null);
+    const isActiveRef = useRef(false);
+    const sessionStartTimeRef = useRef(0);
 
     // Reset Pomodoro when settings change
     useEffect(() => {
@@ -68,7 +100,7 @@ export default function TimerView({
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
 
-        if (isActive) {
+        if (isActive && !isSessionComplete) {
             interval = setInterval(() => {
                 setTotalElapsedSeconds((prev) => prev + 1);
 
@@ -77,8 +109,7 @@ export default function TimerView({
                         if (prev <= 1) {
                             if (pomodoroPhase === 'focus') {
                                 if (currentRound >= pomodoroSettings.totalRounds) {
-                                    setIsActive(false);
-                                    onComplete(totalElapsedSeconds + 1);
+                                    handleStop(); // Auto-stop at end of session
                                     return 0;
                                 }
                                 setPomodoroPhase('break');
@@ -96,101 +127,192 @@ export default function TimerView({
         }
 
         return () => clearInterval(interval);
-    }, [isActive, mode, pomodoroPhase, currentRound, pomodoroSettings, totalElapsedSeconds, onComplete]);
+    }, [isActive, isSessionComplete, mode, pomodoroPhase, currentRound, pomodoroSettings]);
 
     // Request permissions for timelapse
     useEffect(() => {
         if (mode === 'Timelapse') {
             const requestPermissions = async () => {
-                console.log('[Timelapse] Requesting permissions. Current camera permission:', permission);
-                if (!permission?.granted) {
-                    console.log('[Timelapse] Camera permission not granted. Requesting camera permission...');
-                    try {
-                        const camResult = await requestPermission();
-                        console.log('[Timelapse] Camera permission result:', camResult);
-                    } catch (err) {
-                        console.error('[Timelapse] Camera permission request error:', err);
-                    }
-                }
-
-                if (!microphonePermission?.granted) {
-                    console.log('[Timelapse] Microphone permission not granted. Requesting...');
-                    try {
-                        const micResult = await requestMicrophonePermission();
-                        console.log('[Timelapse] Microphone permission result:', micResult);
-                    } catch (err) {
-                        console.error('[Timelapse] Microphone permission request error:', err);
-                    }
-                }
+                if (!permission?.granted) await requestPermission();
+                // Microphone not needed for photo capture, but keep for compatibility
                 try {
-                    // Request write-only permission to avoid asking for Audio read permissions
-                    // capable of triggering 'undeclared permission' errors in Expo Go
                     const { status } = await MediaLibrary.requestPermissionsAsync(true);
-                    console.log('[Timelapse] Media library permission status:', status);
                     setMediaPermissionGranted(status === 'granted');
                 } catch (err) {
-                    console.error('[Timelapse] Media library permission not available:', err);
-                    setMediaPermissionGranted(false);
+                    console.error('[Timelapse] Media library permission error:', err);
                 }
             };
             requestPermissions();
         }
     }, [mode, permission]);
 
-    // Start video recording
-    const startVideoRecording = useCallback(async () => {
-        console.log('[Timelapse] startVideoRecording called');
-        console.log('[Timelapse] Platform.OS:', Platform.OS); // CRITICAL: Check if this says 'android' or 'web'
+    // Helper: Ensure video is local (downloads if remote)
+    const ensureLocalVideo = async (uri: string): Promise<string> => {
+        if (uri.startsWith('http')) {
+            const timestamp = Date.now();
+            const localPath = `${FileSystem.cacheDirectory}timelapse_share_${timestamp}.mp4`;
+            // Check if already downloaded? For simplicity, re-download if needed or trust previous logic
+            // Actually, best to just download to a temp location for sharing/saving
+            const { uri: downloadedUri } = await FileSystem.downloadAsync(uri, localPath);
+            return downloadedUri;
+        }
+        return uri;
+    };
 
+    // Capture a single frame using Camera API (Fix for "Recording in progress" error)
+    const captureFrame = useCallback(async () => {
+        console.log(`[Timelapse] captureFrame called. isCapturing=${isCapturingRef.current}, hasCamera=${!!cameraRef.current}`);
+        if (!cameraRef.current || !framesDirRef.current || !isCapturingRef.current) return;
+
+        isProcessingFrameRef.current = true;
+        try {
+            console.log('[Timelapse] Starting recordAsync...');
+            // Use manual stop timeout as backup for maxDuration logic
+            const recordingPromise = cameraRef.current.recordAsync({
+                maxDuration: 0.5,
+            });
+
+            // Force stop after short delay to ensure loop continues
+            setTimeout(() => {
+                if (cameraRef.current) {
+                    try {
+                        console.log('[Timelapse] Forcing stopRecording...');
+                        cameraRef.current.stopRecording();
+                    } catch (e) {
+                        console.log('[Timelapse] Stop error:', e);
+                    }
+                }
+            }, 600);
+
+            const video = await recordingPromise;
+            console.log(`[Timelapse] recordAsync done. URI: ${video?.uri}`);
+
+            if (video?.uri) {
+                const currentCount = frameCountRef.current;
+
+                // Save video file (mp4) - backend will extract first frame
+                const frameName = getFrameFilename(currentCount).replace('.jpg', '.mp4');
+                const destPath = `${framesDirRef.current}${frameName}`;
+
+                await FileSystem.moveAsync({
+                    from: video.uri,
+                    to: destPath,
+                });
+                console.log(`[Timelapse] Saved frame ${currentCount} to ${destPath}`);
+
+                frameCountRef.current = currentCount + 1;
+            }
+        } catch (err: any) {
+            console.error('[Timelapse] Capture error:', err);
+            // Ignore "Recording in progress" errors and just retry next loop
+        } finally {
+            isProcessingFrameRef.current = false;
+            console.log(`[Timelapse] Finally block. isCapturingRef=${isCapturingRef.current}`);
+            // Schedule next frame ONLY after this one finishes
+            if (isCapturingRef.current) {
+                // Adjust interval based on how long capture took
+                // For simplicity, just wait fixed interval
+                const nextDelay = 3500; // 4s total (0.5s capture + 3.5s wait)
+                console.log(`[Timelapse] Scheduling next frame in ${nextDelay}ms`);
+
+                captureIntervalRef.current = setTimeout(() => {
+                    if (captureFrameRef.current) {
+                        captureFrameRef.current();
+                    }
+                }, nextDelay);
+            } else {
+                console.log(`[Timelapse] NOT scheduling next frame (isCapturing=false)`);
+            }
+        }
+    }, []); // remove isCapturing dependency to avoid closure issues, rely on refs
+
+    // Store latest captureFrame in ref
+    useEffect(() => {
+        captureFrameRef.current = captureFrame;
+    }, [captureFrame]);
+
+    // Start frame capture
+    const startFrameCapture = useCallback(async () => {
         if (!cameraRef.current || !permission?.granted) {
-            console.error('[Timelapse] Cannot start recording. Camera or permission missing. permission?.granted =', permission?.granted);
             Alert.alert('Error', 'Camera not available');
             return;
         }
 
-        try {
-            console.log('[Timelapse] Starting video recording...');
-            setIsRecordingVideo(true);
-            const video = await cameraRef.current.recordAsync({
-                maxDuration: 3600,
-            });
-            console.log('[Timelapse] recordAsync result:', video);
-            if (video?.uri) {
-                console.log('[Timelapse] Video recorded. URI:', video.uri);
-                setRecordedVideoUri(video.uri);
-            }
-        } catch (err) {
-            console.error('[Timelapse] Video recording error:', err);
-            setIsRecordingVideo(false);
-        }
+        const dir = await getFramesDirectory();
+        framesDirRef.current = dir;
+        frameCountRef.current = 0;
+        setFrameCount(0);
+        isProcessingFrameRef.current = false;
+
+        setIsCapturing(true); // State update is async
+
+        // We need a ref to track "active" state immediately for the loop
+        // Reuse captureIntervalRef as a "timer handle"
     }, [permission]);
 
-    // Stop video recording
-    const stopVideoRecording = useCallback(async () => {
-        console.log('[Timelapse] stopVideoRecording called. isRecordingVideo =', isRecordingVideo, 'Camera ref exists:', !!cameraRef.current);
-        if (cameraRef.current && isRecordingVideo) {
-            try {
-                console.log('[Timelapse] Stopping video recording...');
-                await cameraRef.current.stopRecording();
-                console.log('[Timelapse] stopRecording completed');
-                setIsRecordingVideo(false);
-            } catch (err) {
-                console.error('[Timelapse] Stop recording error:', err);
+    // Effect to trigger loop when isCapturing becomes true
+    useEffect(() => {
+        console.log(`[Timelapse] useEffect [isCapturing] triggered: ${isCapturing}`);
+
+        // Only update ref to true, not false
+        // Setting to false is handled by stopFrameCapture after waiting for pending frames
+        if (isCapturing) {
+            isCapturingRef.current = true;
+            if (captureFrameRef.current) {
+                captureFrameRef.current();
             }
         }
-    }, [isRecordingVideo]);
+
+        return () => {
+            if (captureIntervalRef.current) {
+                clearTimeout(captureIntervalRef.current);
+            }
+        };
+    }, [isCapturing]); // Only depend on isCapturing state, not captureFrame function
+
+    const stopFrameCapture = useCallback(() => {
+        console.log('[Timelapse] ⚠️ stopFrameCapture called');
+        setIsCapturing(false);
+        isCapturingRef.current = false; // Immediately stop the loop
+
+        if (captureIntervalRef.current) {
+            clearTimeout(captureIntervalRef.current);
+            captureIntervalRef.current = null;
+        }
+        // Force stop recording if stuck
+        if (cameraRef.current) {
+            try {
+                cameraRef.current.stopRecording();
+            } catch (e) { /* ignore */ }
+        }
+    }, []);
 
     const toggleTimer = useCallback(() => {
-        console.log('[Timer] toggleTimer called. mode =', mode, 'isActive =', isActive);
+        console.log(`[Timelapse] 🔘 toggleTimer called. mode=${mode}, isActive=${isActive}`);
         if (mode === 'Timelapse' && !isActive) {
-            console.log('[Timelapse] Starting timelapse recording from toggleTimer');
-            startVideoRecording();
+            console.log('[Timelapse] ▶️ Starting frame capture...');
+            startFrameCapture();
+        } else if (mode === 'Timelapse' && isActive) {
+            console.log('[Timelapse] ⏸️ Pause attempt blocked (Timelapse cannot pause)');
+            Alert.alert('Timelapse', 'Cannot pause timelapse. Press Stop to finish and create video.');
+            return;
         }
-        if (mode === 'Timelapse' && isActive) {
-            console.log('[Timelapse] Pausing timer (recording state will be handled by stop/alert flow)');
+        const newIsActive = !isActive;
+        console.log(`[Timelapse] Setting isActive to: ${newIsActive}`);
+        isActiveRef.current = newIsActive; // Update ref immediately
+
+        if (newIsActive) {
+            sessionStartTimeRef.current = Date.now();
+            // Engage Safety Lock: Disable stop button for 3 seconds
+            setIsStopLocked(true);
+            setTimeout(() => {
+                setIsStopLocked(false);
+                console.log('[Timelapse] 🔓 Safety lock released - Stop button enabled');
+            }, 3000);
         }
-        setIsActive(!isActive);
-    }, [mode, isActive, startVideoRecording]);
+
+        setIsActive(newIsActive);
+    }, [mode, isActive, startFrameCapture]);
 
     const formatTime = (totalSeconds: number) => {
         const h = Math.floor(totalSeconds / 3600);
@@ -204,66 +326,200 @@ export default function TimerView({
     };
 
     const handleStop = useCallback(async () => {
-        console.log('[Timer] handleStop called. mode =', mode, 'totalElapsedSeconds =', totalElapsedSeconds, 'recordedVideoUri =', recordedVideoUri);
-        setIsActive(false);
+        console.log('[Timelapse] ⏹️ handleStop called');
 
-        if (mode === 'Timelapse') {
-            await stopVideoRecording();
-
-            setTimeout(() => {
-                console.log('[Timelapse] Stop timeout fired. recordedVideoUri =', recordedVideoUri);
-                if (recordedVideoUri) {
-                    Alert.alert(
-                        'Save Video',
-                        `Recording complete (${formatTime(totalElapsedSeconds)}). Save to gallery?`,
-                        [
-                            { text: 'Discard', style: 'destructive', onPress: () => onComplete(totalElapsedSeconds) },
-                            {
-                                text: 'Save',
-                                onPress: async () => {
-                                    console.log('[Timelapse] Save pressed in alert. About to call saveVideo. URI =', recordedVideoUri);
-                                    await saveVideo();
-                                    onComplete(totalElapsedSeconds);
-                                }
-                            },
-                        ]
-                    );
-                } else {
-                    onComplete(totalElapsedSeconds);
-                }
-            }, 500);
-        } else {
-            onComplete(totalElapsedSeconds);
-        }
-    }, [mode, recordedVideoUri, totalElapsedSeconds, onComplete, stopVideoRecording]);
-
-    const saveVideo = async () => {
-        console.log('[Timelapse] saveVideo called. recordedVideoUri =', recordedVideoUri, 'mediaPermissionGranted =', mediaPermissionGranted);
-        if (!recordedVideoUri) {
-            console.error('[Timelapse] saveVideo called but recordedVideoUri is null');
-            Alert.alert('Error', 'No video recorded');
+        // Guard: Don't allow stop if timer isn't active (use ref for immediate check)
+        if (!isActiveRef.current) {
+            console.log('[Timelapse] ⚠️ handleStop BLOCKED - timer not active yet');
             return;
         }
 
-        setIsSaving(true);
+        // Safety Lock: Prevent accidental stops within first 2 seconds
+        if (mode === 'Timelapse' && Date.now() - sessionStartTimeRef.current < 2000) {
+            console.log('[Timelapse] ⚠️ handleStop BLOCKED - safety lock (too soon)');
+            Alert.alert('Hold on', 'Recording just started. Please wait a moment before stopping.');
+            return;
+        }
 
-        try {
-            if (mediaPermissionGranted) {
-                console.log('[Timelapse] Saving video to media library. URI =', recordedVideoUri);
-                await MediaLibrary.saveToLibraryAsync(recordedVideoUri);
-                console.log('[Timelapse] Video saved to gallery successfully');
-                Alert.alert('Saved!', `Video saved to gallery!\n\nTip: Use a video editor to speed up ${formatTime(totalElapsedSeconds)} to create timelapse effect.`);
-            } else {
-                console.warn('[Timelapse] Cannot save video: media permission not granted');
-                Alert.alert('Permission Required', 'Grant media library permission to save videos.');
+        isActiveRef.current = false; // Update ref immediately
+        setIsActive(false);
+
+        if (mode === 'Timelapse') {
+            stopFrameCapture();
+
+            // Wait for any pending frame processing to complete
+            // This prevents race condition where Stop is pressed while recording
+            let attempts = 0;
+            while (isProcessingFrameRef.current && attempts < 50) {
+                console.log('[Timelapse] Waiting for pending frame...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
             }
-        } catch (err) {
-            console.error('[Timelapse] Save video error:', err);
-            Alert.alert('Error', `Failed to save video: ${err}`);
+
+            // Synthesize video from frames
+            const finalFrameCount = frameCountRef.current;
+
+            if (finalFrameCount > 0 && framesDirRef.current) {
+                setIsSynthesizing(true);
+                setSynthesisProgress('Preparing frames...');
+
+                try {
+                    const outputPath = getOutputVideoPath();
+                    setSynthesisProgress(`Creating video from ${finalFrameCount} frames...`);
+
+                    const videoUri = await synthesizeVideo(
+                        framesDirRef.current,
+                        outputPath,
+                        (progress) => setSynthesisProgress(`Processing: ${Math.round(progress * 100)}%`)
+                    );
+
+                    if (videoUri) {
+                        setRecordedVideoUri(videoUri);
+                        const videoDuration = calculateVideoDuration(finalFrameCount);
+                        setSynthesisProgress('Complete!');
+                    } else {
+                        // In Expo Go, synthesis will fail because FFmpeg is not available.
+                        // We check if we actually captured frames to distinguish between "camera failed" vs "library missing".
+                        console.log(`[Timelapse] Synthesis returned null. Total frames captured: ${finalFrameCount}`);
+
+                        if (finalFrameCount > 0) {
+                            Alert.alert(
+                                'Preview Mode (Expo Go)',
+                                `Captured ${finalFrameCount} frames successfully!\n\nTo create the actual video file, you need to use a Development Build because the video processing library (FFmpeg) contains native code not included in Expo Go.\n\nRun "npx expo run:android" to test the full video generation.`
+                            );
+                        } else {
+                            Alert.alert('Error', 'No frames were captured. Please check camera permissions.');
+                        }
+                    }
+
+                    // Cleanup frames
+                    await cleanupFrames();
+                } catch (error: any) {
+                    setIsSynthesizing(false);
+                    console.error('[Timelapse] Synthesis error caught in component:', error);
+
+                    if (error?.message?.includes('null') || error?.name === 'TypeError') {
+                        Alert.alert(
+                            'Development Build Required',
+                            'Video processing requires native libraries. Please use a Development Build.'
+                        );
+                    } else {
+                        Alert.alert('Error', 'Failed to create timelapse video');
+                    }
+                } finally {
+                    setIsSynthesizing(false);
+                }
+            }
+
+            setIsSessionComplete(true);
+        } else {
+            setIsSessionComplete(true);
+        }
+    }, [mode, stopFrameCapture]);
+
+    const saveVideo = async () => {
+        if (!recordedVideoUri) return;
+
+        setIsSaving(true);
+        try {
+            setSynthesisProgress('Downloading...');
+            const uriToSave = await ensureLocalVideo(recordedVideoUri);
+
+            if (mediaPermissionGranted) {
+                await MediaLibrary.saveToLibraryAsync(uriToSave);
+                setIsSaved(true);
+                Alert.alert('Saved!', 'Video successfully saved to your Photos album.');
+            } else {
+                Alert.alert('Permission Required', 'Please enable photo library permissions in settings.');
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status === 'granted') {
+                    setMediaPermissionGranted(true);
+                    // Try again
+                    await MediaLibrary.saveToLibraryAsync(uriToSave);
+                    setIsSaved(true);
+                    Alert.alert('Saved!', 'Video successfully saved to your Photos album.');
+                }
+            }
+        } catch (err: any) {
+            Alert.alert('Error', `Failed to save video: ${err.message}`);
+            console.error(err);
         } finally {
             setIsSaving(false);
+            setSynthesisProgress('');
         }
     };
+
+    const shareVideo = async () => {
+        if (!recordedVideoUri) return;
+
+        // Native Share Sheet (IG/FB compatible)
+        if (!(await Sharing.isAvailableAsync())) {
+            Alert.alert('Error', 'Sharing is not available on this device');
+            return;
+        }
+
+        try {
+            setSynthesisProgress('Preparing Share...');
+            // Ensure we have a local file for native sharing (best for IG/FB Stories)
+            const uriToShare = await ensureLocalVideo(recordedVideoUri);
+
+            await Sharing.shareAsync(uriToShare, {
+                mimeType: 'video/mp4',
+                dialogTitle: 'Share your focus session',
+                UTI: 'public.movie' // iOS specific
+            });
+        } catch (error: any) {
+            Alert.alert('Error', `Share failed: ${error.message}`);
+        } finally {
+            setSynthesisProgress('');
+        }
+    };
+
+    const handleFinish = () => {
+        // Pass totalElapsedSeconds (Real Duration) not video duration
+        onComplete(totalElapsedSeconds, recordedVideoUri);
+    };
+
+    // Render Session Summary (Post-Session)
+    if (isSessionComplete) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.summaryCard}>
+                    <Text style={styles.summaryTitle}>Session Complete!</Text>
+                    <Text style={styles.summaryDuration}>{formatDuration(totalElapsedSeconds)}</Text>
+                    <Text style={styles.summaryTask}>{taskName}</Text>
+
+                    {mode === 'Timelapse' && recordedVideoUri && (
+                        <View style={styles.videoActions}>
+                            <Text style={styles.videoHint}>
+                                📹 Timelapse recorded
+                            </Text>
+
+                            <TouchableOpacity
+                                style={[styles.actionButton, isSaved && styles.actionButtonDisabled]}
+                                onPress={saveVideo}
+                                disabled={isSaved}
+                            >
+                                <Ionicons name={isSaved ? "checkmark-circle" : "download-outline"} size={24} color={Colors.surface} />
+                                <Text style={styles.actionButtonText}>
+                                    {isSaved ? 'Saved to Album' : 'Save Video'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.secondaryButton} onPress={shareVideo}>
+                                <Ionicons name="share-outline" size={24} color={Colors.primary} />
+                                <Text style={styles.secondaryButtonText}>Share (IG/FB)</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    <TouchableOpacity style={styles.finishButton} onPress={handleFinish}>
+                        <Text style={styles.finishButtonText}>Done</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     // Render Pomodoro mode
     const renderPomodoro = () => (
@@ -295,6 +551,7 @@ export default function TimerView({
         <View style={styles.timelapseContainer}>
             {permission?.granted ? (
                 <View style={styles.cameraWrapper}>
+                    {/* Removed ViewShot wrapper since we use direct Camera API now */}
                     <CameraView
                         ref={cameraRef}
                         style={styles.camera}
@@ -302,7 +559,9 @@ export default function TimerView({
                         mode="video"
                         mute={true}
                     />
-                    {isRecordingVideo && (
+
+                    {/* Recording indicator only */}
+                    {isCapturing && (
                         <View style={styles.recordingIndicator}>
                             <View style={styles.recordingDot} />
                             <Text style={styles.recordingText}>REC</Text>
@@ -317,11 +576,14 @@ export default function TimerView({
             )}
             <View style={styles.timelapseInfo}>
                 <View style={styles.timelapseRow}>
-                    <Text style={styles.timelapseLabel}>Recording Time</Text>
+                    <Text style={styles.timelapseLabel}>Focus Time</Text>
                     <Text style={styles.timelapseValue}>{formatTime(totalElapsedSeconds)}</Text>
                 </View>
+                {/* Frame count hidden as requested */}
                 <Text style={styles.timelapseHint}>
-                    {isRecordingVideo ? '🔴 Recording video...' : '📹 Ready to record'}
+                    {isCapturing
+                        ? 'Focusing...'
+                        : '📹 Press Start to begin'}
                 </Text>
             </View>
         </View>
@@ -347,24 +609,37 @@ export default function TimerView({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.button, styles.stopButton]}
+                    style={[
+                        styles.button,
+                        styles.stopButton,
+                        (!isActive || isStopLocked) && styles.buttonDisabled
+                    ]}
                     onPress={handleStop}
+                    disabled={!isActive || isStopLocked}
                 >
                     <Text style={[styles.buttonText, styles.stopButtonText]}>
-                        Stop
+                        {isStopLocked ? 'Wait...' : 'Stop'}
                     </Text>
                 </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-                <Text style={styles.cancelButtonText}>Cancel Session</Text>
-            </TouchableOpacity>
+            {/* Cancel Session button removed - use Stop to properly end session */}
 
             {isSaving && (
                 <View style={styles.savingOverlay}>
                     <View style={styles.savingCard}>
                         <ActivityIndicator size="large" color={Colors.primary} />
                         <Text style={styles.savingText}>Saving video...</Text>
+                    </View>
+                </View>
+            )}
+
+            {isSynthesizing && (
+                <View style={styles.savingOverlay}>
+                    <View style={styles.savingCard}>
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                        <Text style={styles.savingText}>Creating Timelapse</Text>
+                        <Text style={styles.synthesisProgress}>{synthesisProgress}</Text>
                     </View>
                 </View>
             )}
@@ -380,8 +655,93 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         padding: Spacing.xl,
     },
+    // Summary Styles
+    summaryCard: {
+        width: '100%',
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.xxl,
+        alignItems: 'center',
+        gap: Spacing.lg,
+    },
+    summaryTitle: {
+        fontSize: Typography.h2.fontSize,
+        fontWeight: '700',
+        color: Colors.text.primary,
+    },
+    summaryDuration: {
+        fontSize: 48,
+        fontWeight: '700',
+        color: Colors.primary,
+        fontVariant: ['tabular-nums'],
+    },
+    summaryTask: {
+        fontSize: Typography.h3.fontSize,
+        color: Colors.text.secondary,
+        marginBottom: Spacing.lg,
+    },
+    videoActions: {
+        width: '100%',
+        gap: Spacing.md,
+        marginBottom: Spacing.xl,
+    },
+    videoHint: {
+        textAlign: 'center',
+        color: Colors.text.tertiary,
+        marginBottom: Spacing.sm,
+    },
+    actionButton: {
+        backgroundColor: Colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.full,
+        gap: Spacing.sm,
+        width: '100%',
+    },
+    actionButtonDisabled: {
+        backgroundColor: Colors.success,
+    },
+    actionButtonText: {
+        color: Colors.surface,
+        fontWeight: '600',
+        fontSize: Typography.body.fontSize,
+    },
+    secondaryButton: {
+        backgroundColor: 'transparent',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.primary,
+        gap: Spacing.sm,
+        width: '100%',
+    },
+    secondaryButtonText: {
+        color: Colors.primary,
+        fontWeight: '600',
+        fontSize: Typography.body.fontSize,
+    },
+    finishButton: {
+        marginTop: Spacing.md,
+        padding: Spacing.md,
+    },
+    finishButtonText: {
+        color: Colors.text.tertiary,
+        fontSize: Typography.body.fontSize,
+        fontWeight: '600',
+    },
+    // ... Existing styles ...
     cameraWrapper: {
         position: 'relative',
+    },
+    cameraOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.15)', // Subtle dark overlay to reduce flash
+        pointerEvents: 'none',
     },
     camera: {
         width: 280,
@@ -527,6 +887,9 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: Colors.error,
     },
+    buttonDisabled: {
+        opacity: 0.3,
+    },
     stopButtonText: {
         color: Colors.error,
     },
@@ -555,5 +918,10 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: Colors.text.primary,
         marginTop: Spacing.md,
+    },
+    synthesisProgress: {
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.secondary,
+        marginTop: Spacing.sm,
     },
 });

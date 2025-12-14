@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export interface FocusAnalytics {
   totalMinutes: number;
+  totalSeconds: number;
   netCommittedMinutes: number;
   selfDeceptionMinutes: number;
   honestyRatio: number;
@@ -11,6 +12,7 @@ export interface FocusAnalytics {
 export function useFocusAnalytics(userId: string | null) {
   const [analytics, setAnalytics] = useState<FocusAnalytics>({
     totalMinutes: 0,
+    totalSeconds: 0,
     netCommittedMinutes: 0,
     selfDeceptionMinutes: 0,
     honestyRatio: 0,
@@ -24,30 +26,31 @@ export function useFocusAnalytics(userId: string | null) {
     try {
       const { data, error } = await supabase
         .from('FocusSessionLog')
-        .select('duration_minutes, honesty_mode')
+        .select('duration_seconds, honesty_mode')
         .eq('user_id', userId);
 
       if (error) throw error;
 
-      let total = 0;
-      let net = 0;
-      let deception = 0;
+      let totalSeconds = 0;
+      let netSeconds = 0;
+      let deceptionSeconds = 0;
 
       data?.forEach((session) => {
-        const duration = session.duration_minutes || 0;
-        total += duration;
+        const duration = session.duration_seconds || 0;
+        totalSeconds += duration;
         if (session.honesty_mode) {
-          net += duration;
+          netSeconds += duration;
         } else {
-          deception += duration;
+          deceptionSeconds += duration;
         }
       });
 
       setAnalytics({
-        totalMinutes: total,
-        netCommittedMinutes: net,
-        selfDeceptionMinutes: deception,
-        honestyRatio: total > 0 ? net / total : 0,
+        totalMinutes: Math.floor(totalSeconds / 60),
+        totalSeconds: totalSeconds,
+        netCommittedMinutes: Math.floor(netSeconds / 60),
+        selfDeceptionMinutes: Math.floor(deceptionSeconds / 60),
+        honestyRatio: totalSeconds > 0 ? netSeconds / totalSeconds : 0,
       });
     } catch (err: any) {
       setError(err.message);
@@ -59,6 +62,7 @@ export function useFocusAnalytics(userId: string | null) {
   useEffect(() => {
     refreshAnalytics();
   }, [refreshAnalytics]);
+
 
   return { ...analytics, isLoading, error, refreshAnalytics };
 }

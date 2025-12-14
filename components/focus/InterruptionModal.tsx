@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { formatDuration } from '../../utils/time';
 
 const INTERRUPTION_REASONS = [
     { id: 'social_media', label: '社群媒體', icon: '📱' },
@@ -40,11 +41,9 @@ export default function InterruptionModal({
     const [selectedReason, setSelectedReason] = useState<string | null>(null);
     const [count, setCount] = useState(0);
 
-    const formatDuration = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
+    // ... inside component ...
+    // Remove local formatDuration definition
+    // const formatDuration ... (removed)
 
     const handlePerfectSession = () => {
         onSave({ interruptionReason: null, interruptionCount: 0 });

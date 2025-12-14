@@ -165,11 +165,10 @@ export default function CalendarScreen() {
     const handleSaveSession = async (data: { interruptionReason: string | null; interruptionCount: number }) => {
         if (!user || !activeTodo) return;
         try {
-            const minutes = Math.floor(sessionDuration / 60);
             await focusApi.create({
                 user_id: user.id,
                 goal_id: activeTodo.goal_id || '',
-                duration_minutes: minutes,
+                duration_seconds: sessionDuration,
                 honesty_mode: false,
                 interruption_reason: data.interruptionReason,
                 interruption_count: data.interruptionCount,

@@ -1,7 +1,7 @@
 import KPICards from '@/components/dashboard/KPICards';
 import WeeklyStreak from '@/components/dashboard/WeeklyStreak';
 import Card from '@/components/ui/Card';
-import { Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
 import { useAuth } from '@/contexts/AuthContext';
 import { focusApi } from '@/services/focusApi';
 import { goalPlansApi } from '@/services/goalPlansApi';
@@ -10,6 +10,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { formatDuration } from '../../utils/time';
+
+// ... (other imports)
 
 export default function DashboardScreen() {
     const { user } = useAuth();
@@ -20,6 +24,7 @@ export default function DashboardScreen() {
         honestyRatio: 100,
     });
     const [goalContributions, setGoalContributions] = useState<{ goalName: string; percentage: number }[]>([]);
+    const [recentSessionsList, setRecentSessionsList] = useState<any[]>([]);
     const [weeklyStreak, setWeeklyStreak] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -40,36 +45,40 @@ export default function DashboardScreen() {
             ]);
 
             // 計算今日專注時數
-            const todayMinutes = todaySessions.reduce((sum, s) => sum + s.duration_minutes, 0);
+            const todaySeconds = todaySessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
+            const todayMinutes = Math.floor(todaySeconds / 60);
 
             // 計算本週專注時數 (簡單過濾最近 7 天)
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             const weekSessions = recentSessions.filter((s: any) => new Date(s.created_at) > oneWeekAgo);
-            const weekMinutes = weekSessions.reduce((sum: any, s: any) => sum + s.duration_minutes, 0);
+            const weekSeconds = weekSessions.reduce((sum: any, s: any) => sum + (s.duration_seconds || 0), 0);
+            const weekMinutes = Math.floor(weekSeconds / 60);
 
             // 計算誠實度 (Honesty Ratio)
             const honestSessions = weekSessions.filter((s: any) => s.honesty_mode);
-            const honestyRatio = weekSessions.length > 0
-                ? Math.round((honestSessions.length / weekSessions.length) * 100)
+            // Fix: calculate ratio based on duration, not count
+            const honestSeconds = honestSessions.reduce((sum: any, s: any) => sum + (s.duration_seconds || 0), 0);
+            const honestyRatio = weekSeconds > 0
+                ? Math.round((honestSeconds / weekSeconds) * 100)
                 : 100;
 
-            // 計算目標貢獻度
+            // 計算目標貢獻度 (Based on seconds for precision)
             const goalMap = new Map<string, number>();
             weekSessions.forEach((s: any) => {
                 const current = goalMap.get(s.goal_id) || 0;
-                goalMap.set(s.goal_id, current + s.duration_minutes);
+                goalMap.set(s.goal_id, current + (s.duration_seconds || 0));
             });
 
             const contributions = coreGoals
                 .map(g => ({
                     goalName: g.goal_name,
-                    minutes: goalMap.get(g.goal_id) || 0,
+                    seconds: goalMap.get(g.goal_id) || 0,
                 }))
-                .filter(c => c.minutes > 0)
+                .filter(c => c.seconds > 0)
                 .map(c => ({
                     goalName: c.goalName,
-                    percentage: weekMinutes > 0 ? Math.round((c.minutes / weekMinutes) * 100) : 0,
+                    percentage: weekSeconds > 0 ? Math.round((c.seconds / weekSeconds) * 100) : 0,
                 }))
                 .sort((a, b) => b.percentage - a.percentage)
                 .slice(0, 5); // 只取前 5 名
@@ -81,6 +90,7 @@ export default function DashboardScreen() {
             setFocusSummary({ todayMinutes, weekMinutes, honestyRatio });
             setGoalContributions(contributions);
             setWeeklyStreak(streak);
+            setRecentSessionsList(recentSessions);
 
         } catch (err: any) {
             console.error('Failed to load dashboard data:', err);
@@ -192,6 +202,55 @@ export default function DashboardScreen() {
                         You are often interrupted by 'Social Media' around 2 PM.
                     </Text>
                 </Card>
+
+                {/* Recent History */}
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Recent</Text>
+                    {/* Could add 'See All' here */}
+                </View>
+
+                <View style={styles.historyList}>
+                    {recentSessionsList.slice(0, 5).map((session: any) => (
+                        <View key={session.session_id} style={styles.historyItem}>
+                            <View style={styles.historyInfo}>
+                                <Text style={styles.historyTime}>{new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                                <Text style={styles.historyDuration}>{formatDuration(session.duration_seconds || 0)}</Text>
+                                <Text style={styles.historyMode}>
+                                    {session.mode === 'Pomodoro' ? '🍅' : session.mode === 'Timelapse' ? '📷' : '⏱️'}
+                                </Text>
+                            </View>
+
+                            {session.video_path && (
+                                <TouchableOpacity
+                                    style={styles.videoButton}
+                                    onPress={async () => {
+                                        try {
+                                            const url = await focusApi.getVideoUrl(session.video_path);
+                                            if (url) {
+                                                // Using Linking to open the video (or could use a video player modal)
+                                                // For "re-download", opening in browser allows native save.
+                                                // Or we could use MediaLibrary if we downloaded it.
+                                                // Let's open in browser/system player for simplicity first.
+                                                const { Linking } = require('react-native');
+                                                Linking.openURL(url);
+                                            } else {
+                                                alert('Could not get video URL');
+                                            }
+                                        } catch (e) {
+                                            console.error(e);
+                                            alert('Error opening video');
+                                        }
+                                    }}
+                                >
+                                    <Text style={styles.videoButtonText}>▶ Video</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    ))}
+                    {recentSessionsList.length === 0 && (
+                        <Text style={styles.emptyText}>No recent sessions</Text>
+                    )}
+                </View>
             </ScrollView>
         </SafeAreaView>
     );
@@ -338,5 +397,59 @@ const styles = StyleSheet.create({
         color: Colors.text.tertiary,
         textAlign: 'center',
         paddingVertical: Spacing.md,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+        marginTop: Spacing.lg,
+    },
+    sectionTitle: {
+        fontSize: Typography.h3.fontSize,
+        fontWeight: '600',
+        color: Colors.text.primary,
+    },
+    historyList: {
+        marginBottom: Spacing.xxl,
+        gap: Spacing.sm,
+    },
+    historyItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: Colors.surface,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+    },
+    historyInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+    },
+    historyTime: {
+        fontSize: Typography.caption.fontSize,
+        color: Colors.text.tertiary,
+        width: 60,
+    },
+    historyDuration: {
+        fontSize: Typography.body.fontSize,
+        fontWeight: '600',
+        color: Colors.text.primary,
+        width: 80,
+    },
+    historyMode: {
+        fontSize: 16,
+    },
+    videoButton: {
+        backgroundColor: Colors.primary + '20', // Fade
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 4,
+        borderRadius: BorderRadius.full,
+    },
+    videoButtonText: {
+        fontSize: Typography.caption.fontSize,
+        color: Colors.primary,
+        fontWeight: '600',
     },
 });

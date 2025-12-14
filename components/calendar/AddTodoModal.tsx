@@ -48,7 +48,7 @@ export default function AddTodoModal({
     const [loading, setLoading] = useState(false);
 
     // Time-related state
-    const [isAllDay, setIsAllDay] = useState(true);
+    const [isAllDay, setIsAllDay] = useState(false);
     const [dueDate, setDueDate] = useState(defaultDate || new Date());
     const [startTime, setStartTime] = useState(defaultStartTime || new Date());
     const [endTime, setEndTime] = useState(() => {
@@ -71,7 +71,7 @@ export default function AddTodoModal({
             const end = defaultEndTime || new Date(defaultStartTime || new Date());
             if (!defaultEndTime) end.setHours(end.getHours() + 1);
             setEndTime(end);
-            setIsAllDay(defaultStartTime ? false : true);
+            setIsAllDay(false);
         }
     }, [visible, userId, defaultDate, defaultStartTime, defaultEndTime]);
 
