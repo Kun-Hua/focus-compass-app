@@ -50,6 +50,7 @@ export default function FocusScreen() {
         focusMinutes: 25,
         breakMinutes: 5,
         totalRounds: 4,
+        soundName: 'Default',
     });
 
     // Load goals on mount
@@ -305,6 +306,9 @@ export default function FocusScreen() {
                                         ? 'Record your work session'
                                         : 'Free timer for deep work'}
                             </Text>
+                            {timerMode === 'Pomodoro' && (
+                                <Text style={styles.tapHint}>👆 Tap to customize</Text>
+                            )}
                         </View>
                         {timerMode === 'Pomodoro' && (
                             <Text style={styles.settingsIcon}>⚙️</Text>
@@ -504,6 +508,12 @@ const styles = StyleSheet.create({
     settingsIcon: {
         fontSize: 20,
         marginLeft: Spacing.sm,
+    },
+    tapHint: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.primary,
+        marginTop: 4,
+        fontWeight: '600',
     },
     startButton: {
         backgroundColor: Colors.primary,

@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 // Use legacy API to avoid deprecation errors in Expo SDK 52+
 // @ts-ignore
+import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
@@ -23,6 +24,8 @@ export interface PomodoroSettings {
     focusMinutes: number;
     breakMinutes: number;
     totalRounds: number;
+    soundUri?: string;
+    soundName?: string;
 }
 
 // Default Pomodoro settings
@@ -30,6 +33,7 @@ const DEFAULT_POMODORO: PomodoroSettings = {
     focusMinutes: 25,
     breakMinutes: 5,
     totalRounds: 4,
+    soundName: 'Default',
 };
 
 interface TimerViewProps {
@@ -96,6 +100,35 @@ export default function TimerView({
         }
     }, [mode, pomodoroSettings]);
 
+    // Play sound helper
+    const playSound = async () => {
+        try {
+            console.log('[TimerView] Playing sound:', pomodoroSettings.soundUri);
+            if (pomodoroSettings.soundUri) {
+                const { sound } = await Audio.Sound.createAsync(
+                    { uri: pomodoroSettings.soundUri },
+                    { shouldPlay: true }
+                );
+                // Unload after playing? Sound object needs management.
+                // For simplicity, let's just play. React Native handles simple sounds okay.
+                // Better:
+                sound.setOnPlaybackStatusUpdate(status => {
+                    if (status.isLoaded && status.didJustFinish) {
+                        sound.unloadAsync();
+                    }
+                });
+            } else {
+                // Determine if we should play default system sound?
+                // Expo doesn't have system beep. 
+                // Maybe vibration?
+                // Vibration.vibrate() is handled elsewhere? No.
+                // Let's rely on user selecting a sound.
+            }
+        } catch (error) {
+            console.error('[TimerView] Sound playback failed:', error);
+        }
+    };
+
     // Main timer effect
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
@@ -109,12 +142,15 @@ export default function TimerView({
                         if (prev <= 1) {
                             if (pomodoroPhase === 'focus') {
                                 if (currentRound >= pomodoroSettings.totalRounds) {
+                                    playSound();
                                     handleStop(); // Auto-stop at end of session
                                     return 0;
                                 }
+                                playSound();
                                 setPomodoroPhase('break');
                                 return pomodoroSettings.breakMinutes * 60;
                             } else {
+                                playSound();
                                 setPomodoroPhase('focus');
                                 setCurrentRound((r) => r + 1);
                                 return pomodoroSettings.focusMinutes * 60;
@@ -134,13 +170,8 @@ export default function TimerView({
         if (mode === 'Timelapse') {
             const requestPermissions = async () => {
                 if (!permission?.granted) await requestPermission();
-                // Microphone not needed for photo capture, but keep for compatibility
-                try {
-                    const { status } = await MediaLibrary.requestPermissionsAsync(true);
-                    setMediaPermissionGranted(status === 'granted');
-                } catch (err) {
-                    console.error('[Timelapse] Media library permission error:', err);
-                }
+                // We'll request MediaLibrary permissions when saving
+                setMediaPermissionGranted(true);
             };
             requestPermissions();
         }
@@ -426,23 +457,44 @@ export default function TimerView({
             const uriToSave = await ensureLocalVideo(recordedVideoUri);
 
             if (mediaPermissionGranted) {
-                await MediaLibrary.saveToLibraryAsync(uriToSave);
-                setIsSaved(true);
-                Alert.alert('Saved!', 'Video successfully saved to your Photos album.');
+                try {
+                    const asset = await MediaLibrary.createAssetAsync(uriToSave);
+                    await MediaLibrary.createAlbumAsync('FocusCompass', asset, false);
+                    setIsSaved(true);
+                    Alert.alert('Saved!', 'Video saved to "FocusCompass" album.');
+                } catch (e: any) {
+                    console.error('Save error:', e);
+                    // Fallback or specific handling
+                    if (e.message?.includes('permission')) {
+                        throw e; // Handled below
+                    }
+                    // Try simpler save
+                    await MediaLibrary.saveToLibraryAsync(uriToSave);
+                }
             } else {
-                Alert.alert('Permission Required', 'Please enable photo library permissions in settings.');
-                const { status } = await MediaLibrary.requestPermissionsAsync();
+                // ... logic for requesting permission (keep existing or simplify)
+                const { status } = await MediaLibrary.requestPermissionsAsync(); // This might fail
                 if (status === 'granted') {
                     setMediaPermissionGranted(true);
-                    // Try again
-                    await MediaLibrary.saveToLibraryAsync(uriToSave);
+                    const asset = await MediaLibrary.createAssetAsync(uriToSave);
+                    await MediaLibrary.createAlbumAsync('FocusCompass', asset, false);
                     setIsSaved(true);
-                    Alert.alert('Saved!', 'Video successfully saved to your Photos album.');
+                    Alert.alert('Saved!', 'Video saved to "FocusCompass" album.');
                 }
             }
         } catch (err: any) {
-            Alert.alert('Error', `Failed to save video: ${err.message}`);
-            console.error(err);
+            console.error('[SaveVideo] Error:', err);
+
+            // Check if it's the Expo Go permission limitation
+            if (err.message?.includes('AUDIO permission') || err.message?.includes('AndroidManifest')) {
+                Alert.alert(
+                    'Expo Go Limitation',
+                    'Saving videos requires permissions not available in Expo Go.\n\nPlease use the "Share" button instead to save your video to Photos via the system share sheet.',
+                    [{ text: 'OK' }]
+                );
+            } else {
+                Alert.alert('Error', `Failed to save video: ${err.message}`);
+            }
         } finally {
             setIsSaving(false);
             setSynthesisProgress('');

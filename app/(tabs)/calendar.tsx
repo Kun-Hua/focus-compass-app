@@ -1,6 +1,5 @@
 import AddTodoModal from '@/components/calendar/AddTodoModal';
 import CalendarView from '@/components/calendar/CalendarView';
-import FocusHistory from '@/components/calendar/FocusHistory';
 import MonthlyView from '@/components/calendar/MonthlyView';
 import TodoList from '@/components/calendar/TodoList';
 import WeeklyView from '@/components/calendar/WeeklyView';
@@ -22,7 +21,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -66,6 +65,7 @@ export default function CalendarScreen() {
         focusMinutes: 25,
         breakMinutes: 5,
         totalRounds: 4,
+        soundName: 'Default',
     });
 
     // Load Data based on current view
@@ -153,7 +153,14 @@ export default function CalendarScreen() {
     const handleModeSelect = (mode: any) => {
         setTimerMode(mode);
         setShowModeModal(false);
-        setTimeout(() => setIsTimerActive(true), 100);
+
+        if (mode === 'Pomodoro') {
+            // Open settings for Pomodoro before starting
+            setTimeout(() => setShowPomodoroSettings(true), 100);
+        } else {
+            // Start immediately for others
+            setTimeout(() => setIsTimerActive(true), 100);
+        }
     };
 
     const handleTimerComplete = (duration: number) => {
@@ -253,7 +260,7 @@ export default function CalendarScreen() {
                                 onDelete={handleDeleteTodo}
                             />
 
-                            <FocusHistory sessions={history} />
+
                         </>
                     )}
                 </ScrollView>
@@ -318,7 +325,10 @@ export default function CalendarScreen() {
                 visible={showPomodoroSettings}
                 settings={pomodoroSettings}
                 onClose={() => setShowPomodoroSettings(false)}
-                onSave={setPomodoroSettings}
+                onSave={(s) => {
+                    setPomodoroSettings(s);
+                    setTimeout(() => setIsTimerActive(true), 500);
+                }}
             />
         </SafeAreaView>
     );
@@ -329,52 +339,59 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: Colors.background,
     },
-    timerContainer: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: Spacing.xl,
+        paddingHorizontal: Spacing.lg,
         paddingVertical: Spacing.md,
-        backgroundColor: Colors.background,
     },
     headerTitle: {
         fontSize: Typography.h2.fontSize,
-        fontWeight: '700',
+        fontWeight: 'bold',
         color: Colors.text.primary,
     },
     segmentContainer: {
         flexDirection: 'row',
         marginHorizontal: Spacing.lg,
-        padding: 4,
         backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-        borderColor: Colors.border.default,
-        marginBottom: Spacing.sm,
+        borderRadius: BorderRadius.md,
+        padding: 4,
+        marginBottom: Spacing.md,
     },
     segmentButton: {
         flex: 1,
-        paddingVertical: 8,
+        paddingVertical: Spacing.sm,
         alignItems: 'center',
-        borderRadius: BorderRadius.md,
+        borderRadius: BorderRadius.sm,
     },
     segmentButtonActive: {
-        backgroundColor: Colors.primary,
+        backgroundColor: Colors.background,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 1,
+        },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.5,
+        elevation: 2,
     },
     segmentText: {
-        fontSize: Typography.body.fontSize,
+        fontSize: Typography.small.fontSize,
         color: Colors.text.secondary,
-        fontWeight: '600',
+        fontWeight: '500',
     },
     segmentTextActive: {
-        color: '#FFFFFF',
+        color: Colors.text.primary,
+        fontWeight: '600',
     },
     content: {
-        paddingHorizontal: Spacing.md,
         paddingBottom: 100,
     },
+    timerContainer: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
 });
+
+

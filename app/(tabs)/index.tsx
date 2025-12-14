@@ -19,8 +19,8 @@ export default function DashboardScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const [focusSummary, setFocusSummary] = useState({
-        todayMinutes: 0,
-        weekMinutes: 0,
+        todaySeconds: 0,
+        weekSeconds: 0,
         honestyRatio: 100,
     });
     const [goalContributions, setGoalContributions] = useState<{ goalName: string; percentage: number }[]>([]);
@@ -46,14 +46,12 @@ export default function DashboardScreen() {
 
             // 計算今日專注時數
             const todaySeconds = todaySessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
-            const todayMinutes = Math.floor(todaySeconds / 60);
 
             // 計算本週專注時數 (簡單過濾最近 7 天)
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             const weekSessions = recentSessions.filter((s: any) => new Date(s.created_at) > oneWeekAgo);
             const weekSeconds = weekSessions.reduce((sum: any, s: any) => sum + (s.duration_seconds || 0), 0);
-            const weekMinutes = Math.floor(weekSeconds / 60);
 
             // 計算誠實度 (Honesty Ratio)
             const honestSessions = weekSessions.filter((s: any) => s.honesty_mode);
@@ -85,9 +83,10 @@ export default function DashboardScreen() {
 
             // 計算週連勝 (簡單模擬：如果本週有專注紀錄，則連勝 +1)
             // TODO: 實作更精確的週連勝邏輯 (檢查是否達成每週承諾)
-            const streak = weekMinutes > 0 ? 4 : 0; // Mock value for now if active
+            // TODO: 實作更精確的週連勝邏輯 (檢查是否達成每週承諾)
+            const streak = weekSeconds > 0 ? 4 : 0; // Mock value for now if active
 
-            setFocusSummary({ todayMinutes, weekMinutes, honestyRatio });
+            setFocusSummary({ todaySeconds, weekSeconds, honestyRatio });
             setGoalContributions(contributions);
             setWeeklyStreak(streak);
             setRecentSessionsList(recentSessions);
@@ -140,7 +139,7 @@ export default function DashboardScreen() {
     });
 
     const kpiCardsData = [
-        { label: 'Weekly Hours', actual: Math.round(focusSummary.weekMinutes / 60 * 10) / 10, planned: 6.0, unit: 'h' },
+        { label: 'Weekly Hours', actual: Math.round((focusSummary.weekSeconds / 3600) * 10) / 10, planned: 6.0, unit: 'h' },
         { label: 'Honesty Ratio', actual: focusSummary.honestyRatio, planned: 100, unit: '%' },
     ];
 

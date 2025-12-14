@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon: './assets/images/icon.png',
     scheme: 'focuscompassapp',
     userInterfaceStyle: 'automatic',
-    newArchEnabled: false,
+
     ios: {
       ...config.ios,
       supportsTablet: true,
@@ -20,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...config.android,
       package: 'com.albert7463.focuscompassapp',
       // Required for timelapse video recording with audio
-      permissions: ['RECORD_AUDIO'],
+      permissions: ['RECORD_AUDIO', 'READ_MEDIA_AUDIO', 'READ_MEDIA_IMAGES', 'READ_MEDIA_VIDEO', 'WRITE_EXTERNAL_STORAGE', 'READ_EXTERNAL_STORAGE'],
       adaptiveIcon: {
         backgroundColor: '#E6F4FE',
         foregroundImage: './assets/images/android-icon-foreground.png',

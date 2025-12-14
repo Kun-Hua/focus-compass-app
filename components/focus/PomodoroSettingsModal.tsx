@@ -1,4 +1,5 @@
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
+import * as DocumentPicker from 'expo-document-picker';
 import React, { useState } from 'react';
 import {
     Keyboard,
@@ -15,6 +16,8 @@ export interface PomodoroSettings {
     focusMinutes: number;
     breakMinutes: number;
     totalRounds: number;
+    soundUri?: string;
+    soundName?: string;
 }
 
 interface PomodoroSettingsModalProps {
@@ -33,11 +36,30 @@ export default function PomodoroSettingsModal({
     const [focusMinutes, setFocusMinutes] = useState(String(settings.focusMinutes));
     const [breakMinutes, setBreakMinutes] = useState(String(settings.breakMinutes));
     const [totalRounds, setTotalRounds] = useState(String(settings.totalRounds));
+    const [soundUri, setSoundUri] = useState<string | undefined>(settings.soundUri);
+    const [soundName, setSoundName] = useState<string>(settings.soundName || 'Default');
 
     const parseNumber = (value: string, min: number, max: number, fallback: number): number => {
         const num = parseInt(value, 10);
         if (isNaN(num)) return fallback;
         return Math.max(min, Math.min(max, num));
+    };
+
+    const handlePickSound = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'audio/*',
+                copyToCacheDirectory: true,
+            });
+
+            if (result.canceled) return;
+
+            const asset = result.assets[0];
+            setSoundUri(asset.uri);
+            setSoundName(asset.name);
+        } catch (e) {
+            console.error('Error picking sound:', e);
+        }
     };
 
     const handleSave = () => {
@@ -49,6 +71,8 @@ export default function PomodoroSettingsModal({
             focusMinutes: parsedFocus,
             breakMinutes: parsedBreak,
             totalRounds: parsedRounds,
+            soundUri,
+            soundName,
         });
         onClose();
     };
@@ -67,7 +91,7 @@ export default function PomodoroSettingsModal({
                 <View style={styles.overlay}>
                     <View style={styles.modal}>
                         <View style={styles.header}>
-                            <Text style={styles.title}>🍅 Pomodoro Settings</Text>
+                            <Text style={styles.title}>🍅 Timer Settings</Text>
                             <TouchableOpacity onPress={onClose}>
                                 <Text style={styles.closeIcon}>✕</Text>
                             </TouchableOpacity>
@@ -125,6 +149,18 @@ export default function PomodoroSettingsModal({
                                 <Text style={styles.inputUnit}>rounds</Text>
                             </View>
                             <Text style={styles.inputHint}>Range: 1-20 rounds</Text>
+                        </View>
+
+                        {/* Sound Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Completion Sound</Text>
+                            <View style={styles.soundRow}>
+                                <Text style={styles.soundName} numberOfLines={1}>{soundName}</Text>
+                                <TouchableOpacity style={styles.pickButton} onPress={handlePickSound}>
+                                    <Text style={styles.pickButtonText}>Pick File</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={styles.inputHint}>Select an audio file from your device</Text>
                         </View>
 
                         {/* Summary */}
@@ -237,5 +273,32 @@ const styles = StyleSheet.create({
         fontSize: Typography.body.fontSize,
         fontWeight: '600',
         color: Colors.surface,
+    },
+    soundRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: Colors.background,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.md,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
+    },
+    soundName: {
+        flex: 1,
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.primary,
+        marginRight: Spacing.sm,
+    },
+    pickButton: {
+        backgroundColor: Colors.primary,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderRadius: BorderRadius.sm,
+    },
+    pickButtonText: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.surface,
+        fontWeight: '600',
     },
 });

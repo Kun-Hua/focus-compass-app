@@ -47,7 +47,6 @@ export default function TabLayout() {
         options={{
           title: 'Focus',
           tabBarIcon: ({ color }) => <IconSymbol size={24} name="timer" color={color} />,
-          href: null,
         }}
       />
       <Tabs.Screen
