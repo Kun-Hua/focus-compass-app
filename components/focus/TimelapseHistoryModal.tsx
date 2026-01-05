@@ -80,7 +80,15 @@ export default function TimelapseHistoryModal({ visible, onClose }: TimelapseHis
             Alert.alert('Saved', 'Video saved to Photos');
         } catch (err: any) {
             console.error(err);
-            Alert.alert('Error', 'Failed to save video');
+            if (err.message?.includes('AUDIO permission') || err.message?.includes('AndroidManifest')) {
+                Alert.alert(
+                    'Expo Go Limitation',
+                    'Saving media requires permissions not available in Expo Go.\n\nPlease use the "Share" button instead to save to Photos via the system share sheet.',
+                    [{ text: 'OK' }]
+                );
+            } else {
+                Alert.alert('Error', 'Failed to save video');
+            }
         } finally {
             setDownloadingId(null);
         }

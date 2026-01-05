@@ -12,6 +12,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { focusApi, FocusSessionLog } from '@/services/focusApi';
 import { Todo, todosApi } from '@/services/todosApi';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// Use legacy API for Expo Go compatibility
+import * as FileSystem from 'expo-file-system/legacy';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -24,6 +27,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const SETTINGS_STORAGE_KEY = 'focus_pomodoro_settings';
 
 export default function CalendarScreen() {
     const { user } = useAuth();
@@ -97,6 +102,26 @@ export default function CalendarScreen() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    // Load settings persistence (same as focus.tsx)
+    useEffect(() => {
+        const loadSettings = async () => {
+            console.log('[CalendarScreen] DEBUG: Loading settings from AsyncStorage');
+            try {
+                const stored = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    console.log('[CalendarScreen] DEBUG: Found settings:', JSON.stringify(parsed));
+                    setPomodoroSettings(prev => ({ ...prev, ...parsed }));
+                } else {
+                    console.log('[CalendarScreen] DEBUG: No stored settings found.');
+                }
+            } catch (e) {
+                console.error('[CalendarScreen] ERROR: Failed to load settings:', e);
+            }
+        };
+        loadSettings();
+    }, []);
 
     // Actions
     const handleAddTodo = async (data: {
@@ -325,8 +350,49 @@ export default function CalendarScreen() {
                 visible={showPomodoroSettings}
                 settings={pomodoroSettings}
                 onClose={() => setShowPomodoroSettings(false)}
-                onSave={(s) => {
-                    setPomodoroSettings(s);
+                onSave={async (newSettings) => {
+                    console.log('[CalendarScreen] DEBUG: onSave called with:', JSON.stringify(newSettings));
+
+                    let validSettings = { ...newSettings };
+
+                    // Copy file to permanent storage if needed
+                    if (newSettings.soundUri && newSettings.soundUri.startsWith('file://')) {
+                        try {
+                            // @ts-ignore
+                            const docDir = FileSystem.documentDirectory;
+                            if (docDir) {
+                                const fileName = newSettings.soundUri.split('/').pop() || `alarm_${Date.now()}.mp3`;
+                                const permanentUri = docDir + fileName;
+
+                                if (newSettings.soundUri !== permanentUri) {
+                                    console.log('[CalendarScreen] DEBUG: Copying file to permanent storage...');
+                                    await FileSystem.copyAsync({
+                                        from: newSettings.soundUri,
+                                        to: permanentUri
+                                    }).then(() => {
+                                        validSettings.soundUri = permanentUri;
+                                        console.log('[CalendarScreen] DEBUG: File copied successfully');
+                                    }).catch(() => {
+                                        validSettings.soundUri = permanentUri;
+                                    });
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[CalendarScreen] ERROR: File copy failed:', err);
+                        }
+                    }
+
+                    setPomodoroSettings(validSettings);
+
+                    // Persist to AsyncStorage
+                    AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(validSettings))
+                        .then(() => {
+                            console.log('[CalendarScreen] DEBUG: Settings saved to AsyncStorage');
+                        })
+                        .catch(err => {
+                            console.error('[CalendarScreen] ERROR: AsyncStorage save failed:', err);
+                        });
+
                     setTimeout(() => setIsTimerActive(true), 500);
                 }}
             />

@@ -12,9 +12,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: 'focuscompassapp',
     userInterfaceStyle: 'automatic',
 
+
     ios: {
       ...config.ios,
       supportsTablet: true,
+      infoPlist: {
+        NSAppleMusicUsageDescription: 'Allow $(PRODUCT_NAME) to access your music library to select alarm sounds.',
+      },
     },
     android: {
       ...config.android,
@@ -77,7 +81,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     experiments: {
       ...config.experiments,
       typedRoutes: true,
-      reactCompiler: true,
+      reactCompiler: false,
     },
     extra: {
       ...config.extra,

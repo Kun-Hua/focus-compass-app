@@ -9,6 +9,7 @@ import React, { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import 'react-native-url-polyfill/auto';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -43,6 +44,12 @@ function RootLayoutNav() {
         }
     }, [user, isLoading, segments]);
 
+
+    // Return null while loading to prevent the authentication screen (or tabs) from flashing
+    if (isLoading) {
+        return null;
+    }
+
     return (
         <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -68,6 +75,18 @@ export default function RootLayout() {
     useEffect(() => {
         if (loaded) {
             SplashScreen.hideAsync();
+            // Diagnostic network check
+            console.log('[Diagnostic] Testing network connectivity...');
+            fetch('https://google.com')
+                .then(res => console.log('[Diagnostic] Google check success:', res.status))
+                .catch(err => console.error('[Diagnostic] Google check failed:', err.message));
+
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            if (supabaseUrl) {
+                fetch(`${supabaseUrl}/auth/v1/health`)
+                    .then(res => console.log('[Diagnostic] Supabase health check success:', res.status))
+                    .catch(err => console.error('[Diagnostic] Supabase health check failed:', err.message));
+            }
         }
     }, [loaded]);
 

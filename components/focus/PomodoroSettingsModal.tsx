@@ -1,9 +1,9 @@
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/DesignSystem';
-import * as DocumentPicker from 'expo-document-picker';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Keyboard,
     Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -11,6 +11,7 @@ import {
     TouchableWithoutFeedback,
     View,
 } from 'react-native';
+import DeviceAudioList from './DeviceAudioList';
 
 export interface PomodoroSettings {
     focusMinutes: number;
@@ -18,6 +19,7 @@ export interface PomodoroSettings {
     totalRounds: number;
     soundUri?: string;
     soundName?: string;
+    // soundMode removed, defaults to local/preset
 }
 
 interface PomodoroSettingsModalProps {
@@ -37,7 +39,48 @@ export default function PomodoroSettingsModal({
     const [breakMinutes, setBreakMinutes] = useState(String(settings.breakMinutes));
     const [totalRounds, setTotalRounds] = useState(String(settings.totalRounds));
     const [soundUri, setSoundUri] = useState<string | undefined>(settings.soundUri);
-    const [soundName, setSoundName] = useState<string>(settings.soundName || 'Default');
+    const [soundName, setSoundName] = useState<string>(settings.soundName || 'Default (Beep)');
+    const [isAudioListVisible, setIsAudioListVisible] = useState(false);
+
+    // DEBUG: Verify prop synchronization
+    useEffect(() => {
+        if (visible) {
+            console.log('[PomodoroSettingsModal] 🔍 MODEL OPENED - Checking Synchronization');
+            console.log('[PomodoroSettingsModal] DEBUG: Incoming Props settings:', JSON.stringify(settings));
+            console.log('[PomodoroSettingsModal] DEBUG: Internal State:');
+            console.log(`[PomodoroSettingsModal]   - focusMinutes: ${focusMinutes} (Settings: ${settings.focusMinutes})`);
+            console.log(`[PomodoroSettingsModal]   - soundUri: ${soundUri} (Settings: ${settings.soundUri})`);
+            console.log(`[PomodoroSettingsModal]   - soundName: ${soundName} (Settings: ${settings.soundName})`);
+
+            // Critical Fix: check for ANY mismatch and sync
+            const shouldSync =
+                String(settings.focusMinutes) !== focusMinutes ||
+                String(settings.breakMinutes) !== breakMinutes ||
+                String(settings.totalRounds) !== totalRounds ||
+                settings.soundUri !== soundUri ||
+                settings.soundName !== soundName;
+
+            if (shouldSync) {
+                console.log('[PomodoroSettingsModal] 🛠️ AUTO-FIX: Syncing state with props...');
+                setFocusMinutes(String(settings.focusMinutes));
+                setBreakMinutes(String(settings.breakMinutes));
+                setTotalRounds(String(settings.totalRounds));
+                setSoundUri(settings.soundUri);
+                setSoundName(settings.soundName || 'Default (Beep)');
+                console.log('[PomodoroSettingsModal] ✅ State synchronization completed');
+            } else {
+                console.log('[PomodoroSettingsModal] ✅ State is already in sync');
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible, settings]);
+
+    const PRESET_SOUNDS = [
+        { id: 'default', name: 'Default (Beep)', uri: 'default' },
+        { id: 'bell', name: 'Bell Strike', uri: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' },
+        { id: 'digital', name: 'Digital Alarm', uri: 'https://assets.mixkit.co/active_storage/sfx/1003/1003-preview.mp3' },
+        { id: 'nature', name: 'Morning Bird', uri: 'https://assets.mixkit.co/active_storage/sfx/2458/2458-preview.mp3' },
+    ];
 
     const parseNumber = (value: string, min: number, max: number, fallback: number): number => {
         const num = parseInt(value, 10);
@@ -45,21 +88,22 @@ export default function PomodoroSettingsModal({
         return Math.max(min, Math.min(max, num));
     };
 
-    const handlePickSound = async () => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: 'audio/*',
-                copyToCacheDirectory: true,
-            });
 
-            if (result.canceled) return;
+    const handlePickSound = () => {
+        setIsAudioListVisible(true);
+    };
 
-            const asset = result.assets[0];
-            setSoundUri(asset.uri);
-            setSoundName(asset.name);
-        } catch (e) {
-            console.error('Error picking sound:', e);
-        }
+    const handleSelectDeviceAudio = (uri: string, name: string) => {
+        console.log('[PomodoroSettingsModal] ═══════════════════════════════════════');
+        console.log('[PomodoroSettingsModal] DEBUG: User selected custom audio');
+        console.log('[PomodoroSettingsModal] DEBUG: Selected URI:', uri);
+        console.log('[PomodoroSettingsModal] DEBUG: Selected Name:', name);
+        console.log('[PomodoroSettingsModal] DEBUG: URI type:', uri.startsWith('file://') ? 'file://' : uri.startsWith('content://') ? 'content://' : 'other');
+        setSoundUri(uri);
+        setSoundName(name);
+        console.log('[PomodoroSettingsModal] DEBUG: State updated - closing audio list');
+        console.log('[PomodoroSettingsModal] ═══════════════════════════════════════');
+        setIsAudioListVisible(false);
     };
 
     const handleSave = () => {
@@ -67,14 +111,36 @@ export default function PomodoroSettingsModal({
         const parsedBreak = parseNumber(breakMinutes, 1, 60, 5);
         const parsedRounds = parseNumber(totalRounds, 1, 20, 4);
 
-        onSave({
+        const newSettings = {
             focusMinutes: parsedFocus,
             breakMinutes: parsedBreak,
             totalRounds: parsedRounds,
             soundUri,
             soundName,
-        });
+        };
+
+        console.log('[PomodoroSettingsModal] ╔════════════════════════════════════════╗');
+        console.log('[PomodoroSettingsModal] ║   APPLY SETTINGS BUTTON PRESSED        ║');
+        console.log('[PomodoroSettingsModal] ╚════════════════════════════════════════╝');
+        console.log('[PomodoroSettingsModal] DEBUG: Prepared settings object:');
+        console.log('[PomodoroSettingsModal] DEBUG:   - focusMinutes:', parsedFocus);
+        console.log('[PomodoroSettingsModal] DEBUG:   - breakMinutes:', parsedBreak);
+        console.log('[PomodoroSettingsModal] DEBUG:   - totalRounds:', parsedRounds);
+        console.log('[PomodoroSettingsModal] DEBUG:   - soundUri:', soundUri || '(undefined)');
+        console.log('[PomodoroSettingsModal] DEBUG:   - soundName:', soundName || '(undefined)');
+        console.log('[PomodoroSettingsModal] DEBUG: Full settings JSON:', JSON.stringify(newSettings, null, 2));
+
+        try {
+            console.log('[PomodoroSettingsModal] DEBUG: Calling parent onSave callback...');
+            onSave(newSettings);
+            console.log('[PomodoroSettingsModal] DEBUG: ✅ onSave callback completed successfully');
+        } catch (err) {
+            console.error('[PomodoroSettingsModal] DEBUG: ❌ Error in onSave callback:', err);
+        }
+
+        console.log('[PomodoroSettingsModal] DEBUG: Closing modal...');
         onClose();
+        console.log('[PomodoroSettingsModal] ════════════════════════════════════════');
     };
 
     // Calculate total session time
@@ -151,17 +217,57 @@ export default function PomodoroSettingsModal({
                             <Text style={styles.inputHint}>Range: 1-20 rounds</Text>
                         </View>
 
-                        {/* Sound Input */}
+                        {/* Sound Selection */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Completion Sound</Text>
-                            <View style={styles.soundRow}>
-                                <Text style={styles.soundName} numberOfLines={1}>{soundName}</Text>
-                                <TouchableOpacity style={styles.pickButton} onPress={handlePickSound}>
-                                    <Text style={styles.pickButtonText}>Pick File</Text>
+                            <Text style={styles.inputLabel}>Alarm Sound</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll}>
+                                {PRESET_SOUNDS.map((sound) => (
+                                    <TouchableOpacity
+                                        key={sound.id}
+                                        style={[
+                                            styles.presetItem,
+                                            soundUri === sound.uri && styles.presetItemActive
+                                        ]}
+                                        onPress={() => {
+                                            setSoundUri(sound.uri);
+                                            setSoundName(sound.name);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.presetText,
+                                            soundUri === sound.uri && styles.presetTextActive
+                                        ]}>
+                                            {sound.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                                <TouchableOpacity
+                                    style={[
+                                        styles.presetItem,
+                                        soundUri !== 'default' && !PRESET_SOUNDS.find(s => s.uri === soundUri) && styles.presetItemActive
+                                    ]}
+                                    onPress={handlePickSound}
+                                >
+                                    <Text style={[
+                                        styles.presetText,
+                                        soundUri !== 'default' && !PRESET_SOUNDS.find(s => s.uri === soundUri) && styles.presetTextActive
+                                    ]}>
+                                        🎵 Pick from Device...
+                                    </Text>
                                 </TouchableOpacity>
-                            </View>
-                            <Text style={styles.inputHint}>Select an audio file from your device</Text>
+                            </ScrollView>
+                            {soundUri && soundUri !== 'default' && !soundUri.startsWith('http') && (
+                                <Text style={styles.selectedFileText}>Selected: {soundName}</Text>
+                            )}
+                            <Text style={styles.inputHint}>Choose a preset or pick a custom song from your device</Text>
                         </View>
+
+                        {/* Device Audio List Modal */}
+                        <DeviceAudioList
+                            visible={isAudioListVisible}
+                            onClose={() => setIsAudioListVisible(false)}
+                            onSelect={handleSelectDeviceAudio}
+                        />
 
                         {/* Summary */}
                         <View style={styles.summary}>
@@ -177,7 +283,7 @@ export default function PomodoroSettingsModal({
                     </View>
                 </View>
             </TouchableWithoutFeedback>
-        </Modal>
+        </Modal >
     );
 }
 
@@ -300,5 +406,78 @@ const styles = StyleSheet.create({
         fontSize: Typography.small.fontSize,
         color: Colors.surface,
         fontWeight: '600',
+    },
+    modeContainer: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+    },
+    modeButton: {
+        flex: 1,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
+        alignItems: 'center',
+    },
+    modeButtonActive: {
+        backgroundColor: Colors.primary,
+        borderColor: Colors.primary,
+    },
+    modeButtonText: {
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.primary,
+        fontWeight: '600',
+    },
+    modeButtonTextActive: {
+        color: Colors.surface,
+    },
+    presetScroll: {
+        marginTop: Spacing.sm,
+    },
+    presetItem: {
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.md,
+        backgroundColor: Colors.background,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.border.default,
+        marginRight: Spacing.md,
+    },
+    presetItemActive: {
+        backgroundColor: Colors.primary,
+        borderColor: Colors.primary,
+    },
+    presetText: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.text.primary,
+        fontWeight: '600',
+    },
+    presetTextActive: {
+        color: Colors.surface,
+    },
+    selectedFileText: {
+        fontSize: Typography.small.fontSize,
+        color: Colors.success,
+        marginTop: Spacing.sm,
+        fontWeight: '600',
+    },
+    spotifySearchButton: {
+        backgroundColor: '#1DB954',
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        alignItems: 'center',
+    },
+    spotifyButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+    },
+    spotifySearchButtonText: {
+        color: Colors.surface,
+        fontWeight: '700',
+        fontSize: Typography.body.fontSize,
+    },
+    selectedTrackContainer: {
+        marginTop: Spacing.sm,
     },
 });

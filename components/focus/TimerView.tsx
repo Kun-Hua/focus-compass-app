@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
 import { formatDuration } from '../../utils/time';
 import {
     calculateVideoDuration,
@@ -90,6 +90,53 @@ export default function TimerView({
     const captureFrameRef = useRef<(() => void) | null>(null);
     const isActiveRef = useRef(false);
     const sessionStartTimeRef = useRef(0);
+    const soundRef = useRef<Audio.Sound | null>(null);
+    const [isAlarmActive, setIsAlarmActive] = useState(false);
+
+    // Configure Audio once on mount - Configure for alarm-like behavior
+    useEffect(() => {
+        const setupAudio = async () => {
+            try {
+                // Note: expo-av has limitations regarding Android audio streams
+                // It doesn't provide direct control over USAGE_ALARM vs USAGE_MEDIA
+                // This configuration provides the best alarm-like behavior possible:
+                const config = {
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true, // Critical: Play even when device is in silent mode
+                    staysActiveInBackground: true, // Continue playing in background
+                    interruptionModeAndroid: 1, // DoNotMix - stop other audio when alarm plays
+                    shouldDuckAndroid: false, // Don't lower volume, play at full volume
+                    playThroughEarpieceAndroid: false,
+                    interruptionModeIOS: 1, // DoNotMix - proper alarm behavior on iOS
+                };
+                console.log('[TimerView] Configuring audio for alarm behavior:', JSON.stringify(config));
+                await Audio.setAudioModeAsync(config as any);
+                console.log('[TimerView] Audio mode configured successfully');
+            } catch (err) {
+                console.error('[TimerView] Audio mode setup failed:', err);
+            }
+        };
+        setupAudio();
+    }, []);
+
+    const stopAlarm = useCallback(async () => {
+        setIsAlarmActive(false);
+        Vibration.cancel();
+        if (soundRef.current) {
+            try {
+                await soundRef.current.unloadAsync();
+            } catch (err) {
+                console.error('[TimerView] Error unloading sound:', err);
+            }
+            soundRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            stopAlarm();
+        };
+    }, [stopAlarm]);
 
     // Reset Pomodoro when settings change
     useEffect(() => {
@@ -103,29 +150,51 @@ export default function TimerView({
     // Play sound helper
     const playSound = async () => {
         try {
-            console.log('[TimerView] Playing sound:', pomodoroSettings.soundUri);
-            if (pomodoroSettings.soundUri) {
-                const { sound } = await Audio.Sound.createAsync(
-                    { uri: pomodoroSettings.soundUri },
-                    { shouldPlay: true }
-                );
-                // Unload after playing? Sound object needs management.
-                // For simplicity, let's just play. React Native handles simple sounds okay.
-                // Better:
-                sound.setOnPlaybackStatusUpdate(status => {
-                    if (status.isLoaded && status.didJustFinish) {
-                        sound.unloadAsync();
-                    }
-                });
+            console.log('[TimerView] playSound triggered. Current settings:', JSON.stringify(pomodoroSettings));
+
+            // 0. Ensure previous alarm is stopped
+            await stopAlarm();
+
+            // 1. Start continuous vibration (ONLY if Default sound)
+            setIsAlarmActive(true);
+            if (!pomodoroSettings.soundName || pomodoroSettings.soundName === 'Default') {
+                Vibration.vibrate([0, 500, 200, 500], true); // true = repeat
             } else {
-                // Determine if we should play default system sound?
-                // Expo doesn't have system beep. 
-                // Maybe vibration?
-                // Vibration.vibrate() is handled elsewhere? No.
-                // Let's rely on user selecting a sound.
+                // For custom music/sounds, ensure vibration is off
+                Vibration.cancel();
+            }
+
+            // 2. Play Sound (Preset, Custom File, or Bundled)
+            try {
+                let soundSource;
+
+                // Check for remote URL (http/https)
+                if (pomodoroSettings.soundUri && (pomodoroSettings.soundUri.startsWith('http') || pomodoroSettings.soundUri.startsWith('https'))) {
+                    soundSource = { uri: pomodoroSettings.soundUri };
+                }
+                // Check for local file or content URI (file://, content://) - User picked files
+                else if (pomodoroSettings.soundUri && (pomodoroSettings.soundUri.startsWith('file://') || pomodoroSettings.soundUri.startsWith('content://'))) {
+                    soundSource = { uri: pomodoroSettings.soundUri };
+                }
+                // Default fallback to bundled asset
+                else {
+                    soundSource = require('../../assets/sounds/alarm.mp3');
+                }
+
+                console.log('[TimerView] Playing looping sound from source:', JSON.stringify(soundSource));
+
+                const { sound, status } = await Audio.Sound.createAsync(
+                    soundSource,
+                    { shouldPlay: true, volume: 1.0, isLooping: true }
+                );
+                console.log('[TimerView] Sound created. Status:', JSON.stringify(status));
+
+                soundRef.current = sound;
+            } catch (audioError: any) {
+                console.error('[TimerView] Audio playback failed:', audioError);
             }
         } catch (error) {
-            console.error('[TimerView] Sound playback failed:', error);
+            console.error('[TimerView] playSound logic failed:', error);
         }
     };
 
@@ -358,6 +427,9 @@ export default function TimerView({
 
     const handleStop = useCallback(async () => {
         console.log('[Timelapse] ⏹️ handleStop called');
+
+        // 0. Stop any active alarm immediately
+        await stopAlarm();
 
         // Guard: Don't allow stop if timer isn't active (use ref for immediate check)
         if (!isActiveRef.current) {
@@ -695,6 +767,19 @@ export default function TimerView({
                     </View>
                 </View>
             )}
+
+            {isAlarmActive && (
+                <View style={[styles.savingOverlay, { backgroundColor: 'rgba(0,0,0,0.85)' }]}>
+                    <View style={styles.alarmCard}>
+                        <Ionicons name="notifications-outline" size={80} color={Colors.primary} />
+                        <Text style={styles.alarmTitle}>Timer Complete!</Text>
+                        <Text style={styles.alarmTask}>{taskName}</Text>
+                        <TouchableOpacity style={styles.dismissButton} onPress={stopAlarm}>
+                            <Text style={styles.dismissButtonText}>Dismiss Alarm</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
@@ -975,5 +1060,44 @@ const styles = StyleSheet.create({
         fontSize: Typography.body.fontSize,
         color: Colors.text.secondary,
         marginTop: Spacing.sm,
+    },
+    alarmCard: {
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.xxl,
+        alignItems: 'center',
+        width: '85%',
+        gap: Spacing.lg,
+        // Elevation/Shadow
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    alarmTitle: {
+        fontSize: Typography.h2.fontSize,
+        fontWeight: 'bold',
+        color: Colors.text.primary,
+        textAlign: 'center',
+    },
+    alarmTask: {
+        fontSize: Typography.body.fontSize,
+        color: Colors.text.secondary,
+        textAlign: 'center',
+        marginBottom: Spacing.sm,
+    },
+    dismissButton: {
+        backgroundColor: Colors.primary,
+        paddingHorizontal: Spacing.xxl,
+        paddingVertical: Spacing.lg,
+        borderRadius: BorderRadius.full,
+        width: '100%',
+        alignItems: 'center',
+    },
+    dismissButtonText: {
+        color: Colors.surface,
+        fontSize: Typography.h3.fontSize,
+        fontWeight: 'bold',
     },
 });

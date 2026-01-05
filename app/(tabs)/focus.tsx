@@ -8,10 +8,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { focusApi } from '@/services/focusApi';
 import { goalsApi } from '@/services/goalsApi';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// Use legacy API for Expo Go compatibility
+import * as FileSystem from 'expo-file-system/legacy';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDuration } from '../../utils/time';
+
+const SETTINGS_STORAGE_KEY = 'focus_pomodoro_settings';
 
 interface Goal {
     id: string;
@@ -52,6 +57,202 @@ export default function FocusScreen() {
         totalRounds: 4,
         soundName: 'Default',
     });
+
+    // Load settings persistence
+    useEffect(() => {
+        const loadSettings = async () => {
+            console.log('[FocusScreen] ╔═══════════════════════════════════════════════════╗');
+            console.log('[FocusScreen] ║          LOADING SETTINGS ON MOUNT                ║');
+            console.log('[FocusScreen] ╚═══════════════════════════════════════════════════╝');
+            console.log('[FocusScreen] DEBUG: Storage key:', SETTINGS_STORAGE_KEY);
+
+            // FileSystem diagnostics
+            try {
+                // @ts-ignore
+                const docDir = FileSystem.documentDirectory;
+                console.log('[FocusScreen] DEBUG: FileSystem.documentDirectory:', docDir);
+                if (docDir) {
+                    const files = await FileSystem.readDirectoryAsync(docDir);
+                    console.log('[FocusScreen] DEBUG: Files in documentDirectory:', JSON.stringify(files));
+                    console.log('[FocusScreen] DEBUG: Total files in document directory:', files.length);
+                } else {
+                    console.warn('[FocusScreen] WARNING: documentDirectory is NULL');
+                }
+            } catch (fsErr) {
+                console.error('[FocusScreen] ERROR: FileSystem diagnostic failed:', fsErr);
+            }
+
+            console.log('[FocusScreen] DEBUG: Reading from AsyncStorage...');
+            try {
+                const stored = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+                console.log('[FocusScreen] DEBUG: AsyncStorage raw result:', stored);
+                console.log('[FocusScreen] DEBUG: Data type:', typeof stored);
+                console.log('[FocusScreen] DEBUG: Data length:', stored?.length || 0);
+
+                if (stored) {
+                    console.log('[FocusScreen] DEBUG: ✅ Found stored settings, parsing...');
+                    const parsed = JSON.parse(stored);
+                    console.log('[FocusScreen] DEBUG: Parsed settings object:');
+                    console.log('[FocusScreen] DEBUG:   - focusMinutes:', parsed.focusMinutes);
+                    console.log('[FocusScreen] DEBUG:   - breakMinutes:', parsed.breakMinutes);
+                    console.log('[FocusScreen] DEBUG:   - totalRounds:', parsed.totalRounds);
+                    console.log('[FocusScreen] DEBUG:   - soundUri:', parsed.soundUri || '(undefined)');
+                    console.log('[FocusScreen] DEBUG:   - soundName:', parsed.soundName || '(undefined)');
+
+                    // Check if soundUri file exists
+                    if (parsed.soundUri && parsed.soundUri.startsWith('file://')) {
+                        console.log('[FocusScreen] DEBUG: Checking if sound file exists...');
+                        try {
+                            const fileInfo = await FileSystem.getInfoAsync(parsed.soundUri);
+                            console.log('[FocusScreen] DEBUG: File info:', JSON.stringify(fileInfo));
+                            if (fileInfo.exists) {
+                                console.log('[FocusScreen] DEBUG: ✅ Sound file EXISTS at:', parsed.soundUri);
+                                console.log('[FocusScreen] DEBUG: File size:', fileInfo.size, 'bytes');
+                            } else {
+                                console.warn('[FocusScreen] WARNING: ❌ Sound file DOES NOT EXIST at:', parsed.soundUri);
+                            }
+                        } catch (fileCheckErr) {
+                            console.error('[FocusScreen] ERROR: Failed to check file existence:', fileCheckErr);
+                        }
+                    }
+
+                    console.log('[FocusScreen] DEBUG: Applying settings to state...');
+                    setPomodoroSettings(prev => {
+                        const newSettings = { ...prev, ...parsed };
+                        console.log('[FocusScreen] DEBUG: Previous state:', JSON.stringify(prev));
+                        console.log('[FocusScreen] DEBUG: New state after merge:', JSON.stringify(newSettings));
+                        return newSettings;
+                    });
+                    console.log('[FocusScreen] DEBUG: ✅ Settings applied to state');
+                } else {
+                    console.log('[FocusScreen] DEBUG: ⚠️ No stored settings found in AsyncStorage');
+                    console.log('[FocusScreen] DEBUG: Will use default settings');
+                }
+            } catch (e) {
+                console.error('[FocusScreen] ERROR: ❌ Failed to load settings:', e);
+                console.error('[FocusScreen] ERROR: Error type:', typeof e);
+                console.error('[FocusScreen] ERROR: Error message:', (e as Error)?.message);
+            }
+            console.log('[FocusScreen] ═══════════════════════════════════════════════════');
+        };
+        loadSettings();
+    }, []);
+
+    const handleSaveSettings = async (newSettings: PomodoroSettings) => {
+        console.log('[FocusScreen] ╔═══════════════════════════════════════════════════╗');
+        console.log('[FocusScreen] ║       HANDLE SAVE SETTINGS TRIGGERED              ║');
+        console.log('[FocusScreen] ╚═══════════════════════════════════════════════════╝');
+        console.log('[FocusScreen] DEBUG: Received settings from modal:');
+        console.log('[FocusScreen] DEBUG:   - focusMinutes:', newSettings.focusMinutes);
+        console.log('[FocusScreen] DEBUG:   - breakMinutes:', newSettings.breakMinutes);
+        console.log('[FocusScreen] DEBUG:   - totalRounds:', newSettings.totalRounds);
+        console.log('[FocusScreen] DEBUG:   - soundUri:', newSettings.soundUri || '(undefined)');
+        console.log('[FocusScreen] DEBUG:   - soundName:', newSettings.soundName || '(undefined)');
+
+        let validSettings = { ...newSettings };
+
+        // 1. Process Sound URI: Copy cached/temporary files to document storage for persistence
+        // This handles both file:// (from DocumentPicker cache) and content:// (Android content URIs)
+        if (newSettings.soundUri &&
+            (newSettings.soundUri.startsWith('file://') || newSettings.soundUri.startsWith('content://'))) {
+            console.log('[FocusScreen] DEBUG: 📁 FILE PERSISTENCE NEEDED - Processing sound file...');
+            try {
+                // @ts-ignore
+                const docDir = FileSystem.documentDirectory;
+                console.log('[FocusScreen] DEBUG: FileSystem.documentDirectory is:', docDir);
+
+                if (!docDir) {
+                    console.warn('[FocusScreen] WARNING: documentDirectory is null, cannot persist custom audio file.');
+                } else {
+                    // Extract filename or create timestamp-based one
+                    const fileName = newSettings.soundUri.split('/').pop()?.split('?')[0] || `alarm_${Date.now()}.mp3`;
+                    const permanentUri = docDir + fileName;
+
+                    console.log(`[FocusScreen] DEBUG: Source URI: ${newSettings.soundUri}`);
+                    console.log(`[FocusScreen] DEBUG: Permanent URI: ${permanentUri}`);
+
+                    // Only copy if source is different from destination
+                    if (newSettings.soundUri !== permanentUri) {
+                        console.log('[FocusScreen] DEBUG: Copying file to permanent storage...');
+                        try {
+                            await FileSystem.copyAsync({
+                                from: newSettings.soundUri,
+                                to: permanentUri
+                            });
+                            console.log('[FocusScreen] DEBUG: ✅ Copy SUCCESS');
+                            // Verify the copy
+                            const fileInfo = await FileSystem.getInfoAsync(permanentUri);
+                            console.log('[FocusScreen] DEBUG: Verified - File exists:', fileInfo.exists);
+                            if (fileInfo.exists && !fileInfo.isDirectory) {
+                                console.log('[FocusScreen] DEBUG: Verified - File size:', fileInfo.size);
+                            }
+                            validSettings.soundUri = permanentUri;
+                        } catch (copyErr: any) {
+                            console.log('[FocusScreen] DEBUG: Copy failed. Error:', copyErr.message);
+
+                            // If file already exists, try to delete and retry
+                            if (copyErr.message?.includes('already exists') || copyErr.message?.includes('File exists')) {
+                                console.log('[FocusScreen] DEBUG: File exists, deleting and retrying...');
+                                try {
+                                    await FileSystem.deleteAsync(permanentUri, { idempotent: true });
+                                    await FileSystem.copyAsync({
+                                        from: newSettings.soundUri,
+                                        to: permanentUri
+                                    });
+                                    console.log('[FocusScreen] DEBUG: Retry copy SUCCESS');
+                                    validSettings.soundUri = permanentUri;
+                                } catch (retryErr: any) {
+                                    console.error('[FocusScreen] DEBUG: Retry failed:', retryErr.message);
+                                    // Use permanent URI anyway, assuming it already exists
+                                    validSettings.soundUri = permanentUri;
+                                }
+                            } else {
+                                // For other errors, try to use the permanent path anyway
+                                validSettings.soundUri = permanentUri;
+                            }
+                        }
+                    } else {
+                        console.log('[FocusScreen] DEBUG: File already in permanent storage, no copy needed');
+                    }
+                }
+            } catch (err) {
+                console.error('[FocusScreen] ERROR in file persistence logic:', err);
+            }
+        }
+
+        console.log('[FocusScreen] ───────────────────────────────────────────────────');
+        console.log('[FocusScreen] DEBUG: Final validSettings:');
+        console.log('[FocusScreen] DEBUG:   - soundUri:', validSettings.soundUri || '(undefined)');
+        console.log('[FocusScreen] DEBUG:   - soundName:', validSettings.soundName || '(undefined)');
+        console.log('[FocusScreen] DEBUG: Updating React state...');
+        setPomodoroSettings(validSettings);
+        console.log('[FocusScreen] DEBUG: ✅ State updated');
+
+        console.log('[FocusScreen] ───────────────────────────────────────────────────');
+        console.log('[FocusScreen] DEBUG: 💾 SAVING TO ASYNCSTORAGE');
+        console.log('[FocusScreen] DEBUG: Storage key:', SETTINGS_STORAGE_KEY);
+        const jsonToSave = JSON.stringify(validSettings);
+        console.log('[FocusScreen] DEBUG: JSON to save:', jsonToSave);
+        console.log('[FocusScreen] DEBUG: JSON length:', jsonToSave.length, 'chars');
+        AsyncStorage.setItem(SETTINGS_STORAGE_KEY, jsonToSave)
+            .then(() => {
+                console.log('[FocusScreen] DEBUG: ✅✅✅ AsyncStorage SAVE SUCCESS ✅✅✅');
+                // Verify by immediate reading (just for debug)
+                AsyncStorage.getItem(SETTINGS_STORAGE_KEY).then(val => {
+                    console.log('[FocusScreen] DEBUG: Immediate verification read:', val);
+                    if (val === jsonToSave) {
+                        console.log('[FocusScreen] DEBUG: ✅ Verification PASSED');
+                    } else {
+                        console.error('[FocusScreen] ERROR: ❌ Verification FAILED - mismatch');
+                    }
+                });
+            })
+            .catch(err => {
+                console.error('[FocusScreen] ERROR: ❌❌❌ AsyncStorage SAVE FAILED ❌❌❌');
+                console.error('[FocusScreen] ERROR:', err);
+            });
+        console.log('[FocusScreen] ═══════════════════════════════════════════════════');
+    };
 
     // Load goals on mount
     const loadGoals = useCallback(async () => {
@@ -349,7 +550,10 @@ export default function FocusScreen() {
                 visible={showPomodoroSettings}
                 settings={pomodoroSettings}
                 onClose={() => setShowPomodoroSettings(false)}
-                onSave={setPomodoroSettings}
+                onSave={(newSettings) => {
+                    console.log('[FocusScreen] onSave prop called from Modal');
+                    handleSaveSettings(newSettings);
+                }}
             />
 
             {/* Timelapse History Modal */}
