@@ -9,7 +9,7 @@ export default function LeagueScreen() {
     const userRank = {
         league: 'Silver',
         icon: '🥈',
-        honestyMinutes: 120,
+        focusMinutes: 120,
         nextLeague: 'Gold',
         minutesToNext: 30,
         progress: 0.8,
@@ -24,7 +24,7 @@ export default function LeagueScreen() {
 
     const badges = [
         { id: '1', name: 'Sprinter', icon: '🏃', unlocked: true },
-        { id: '2', name: 'Honest', icon: '💎', unlocked: true },
+        { id: '2', name: 'Focused', icon: '🧠', unlocked: true },
         { id: '3', name: '???', icon: '🔒', unlocked: false },
         { id: '4', name: '???', icon: '🔒', unlocked: false },
     ];
@@ -51,8 +51,8 @@ export default function LeagueScreen() {
                                 <Text style={styles.rankSubtitle}>Top 20% of users</Text>
                             </View>
                             <View style={styles.rankStats}>
-                                <Text style={styles.rankMinutes}>{userRank.honestyMinutes}</Text>
-                                <Text style={styles.rankLabel}>Honesty Mins</Text>
+                                <Text style={styles.rankMinutes}>{userRank.focusMinutes}</Text>
+                                <Text style={styles.rankLabel}>Focus Mins</Text>
                             </View>
                         </View>
 

@@ -27,7 +27,6 @@ export interface FocusSessionLog {
   subgoal_id?: string | null;
   start_time: string;
   duration_minutes: number;
-  honesty_mode: boolean;
   interruption_count: number;
   interruption_reason: string | null;
   created_at: string;
@@ -63,10 +62,8 @@ export interface AccountabilityPartner {
   partner_user_id: string | null;
   role: 'mentor' | 'peer' | 'spouse' | 'other';
   visibility: {
-    netCommittedMinutes?: boolean;
-    honestyRatio?: boolean;
-    interruptionFrequency?: boolean;
     totalDurationMinutes?: boolean;
+    interruptionFrequency?: boolean;
     commitmentRate?: boolean;
   };
   status: 'pending' | 'active' | 'revoked';

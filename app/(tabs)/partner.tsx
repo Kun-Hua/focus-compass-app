@@ -18,7 +18,6 @@ export default function PartnerScreen() {
 
     const metrics = [
         { label: 'Focus Time', you: '2h 30m', partner: '2h 25m', diff: '+5m', winning: true },
-        { label: 'Honesty', you: '95%', partner: '98%', diff: '-3%', winning: false },
         { label: 'Streak', you: '4 days', partner: '12 days', diff: '-8', winning: false },
     ];
 

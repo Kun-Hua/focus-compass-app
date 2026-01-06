@@ -201,7 +201,6 @@ export default function CalendarScreen() {
                 user_id: user.id,
                 goal_id: activeTodo.goal_id || '',
                 duration_seconds: sessionDuration,
-                honesty_mode: false,
                 interruption_reason: data.interruptionReason,
                 interruption_count: data.interruptionCount,
                 mode: timerMode,
@@ -341,7 +340,6 @@ export default function CalendarScreen() {
                 visible={showInterruption}
                 durationSeconds={sessionDuration}
                 goalName={activeTodo?.title || 'Unknown Task'}
-                honestyMode={false}
                 onSave={handleSaveSession}
                 onCancel={() => setShowInterruption(false)}
             />

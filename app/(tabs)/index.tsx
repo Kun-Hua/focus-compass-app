@@ -21,7 +21,6 @@ export default function DashboardScreen() {
     const [focusSummary, setFocusSummary] = useState({
         todaySeconds: 0,
         weekSeconds: 0,
-        honestyRatio: 100,
     });
     const [goalContributions, setGoalContributions] = useState<{ goalName: string; percentage: number }[]>([]);
     const [recentSessionsList, setRecentSessionsList] = useState<any[]>([]);
@@ -53,13 +52,7 @@ export default function DashboardScreen() {
             const weekSessions = recentSessions.filter((s: any) => new Date(s.created_at) > oneWeekAgo);
             const weekSeconds = weekSessions.reduce((sum: any, s: any) => sum + (s.duration_seconds || 0), 0);
 
-            // 計算誠實度 (Honesty Ratio)
-            const honestSessions = weekSessions.filter((s: any) => s.honesty_mode);
-            // Fix: calculate ratio based on duration, not count
-            const honestSeconds = honestSessions.reduce((sum: any, s: any) => sum + (s.duration_seconds || 0), 0);
-            const honestyRatio = weekSeconds > 0
-                ? Math.round((honestSeconds / weekSeconds) * 100)
-                : 100;
+
 
             // 計算目標貢獻度 (Based on seconds for precision)
             const goalMap = new Map<string, number>();
@@ -86,7 +79,7 @@ export default function DashboardScreen() {
             // TODO: 實作更精確的週連勝邏輯 (檢查是否達成每週承諾)
             const streak = weekSeconds > 0 ? 4 : 0; // Mock value for now if active
 
-            setFocusSummary({ todaySeconds, weekSeconds, honestyRatio });
+            setFocusSummary({ todaySeconds, weekSeconds });
             setGoalContributions(contributions);
             setWeeklyStreak(streak);
             setRecentSessionsList(recentSessions);
@@ -140,7 +133,6 @@ export default function DashboardScreen() {
 
     const kpiCardsData = [
         { label: 'Weekly Hours', actual: Math.round((focusSummary.weekSeconds / 3600) * 10) / 10, planned: 6.0, unit: 'h' },
-        { label: 'Honesty Ratio', actual: focusSummary.honestyRatio, planned: 100, unit: '%' },
     ];
 
     // Mock MIT for now (TODO: implement MIT selection)
@@ -175,7 +167,7 @@ export default function DashboardScreen() {
                 <KPICards data={kpiCardsData} />
 
                 {/* Weekly Streak */}
-                <WeeklyStreak streakWeeks={weeklyStreak} onTrack={weeklyStreak > 0} />
+                <WeeklyStreak streak={weeklyStreak} onTrack={weeklyStreak > 0} />
 
                 {/* Contribution Chart */}
                 <Card style={styles.chartCard}>

@@ -5,7 +5,6 @@ export interface FocusSession {
     goal_id: string;
     duration_minutes?: number; // Deprecated, but optional for backward compact
     duration_seconds: number;
-    honesty_mode: boolean;
     interruption_reason?: string | null;
     interruption_count?: number;
     mode?: 'Pomodoro' | 'Stopwatch' | 'Timelapse';
@@ -36,7 +35,6 @@ export const focusApi = {
             // Strict number casting to prevent NaN which serializes to null in JSON
             duration_minutes: Math.floor(Number(session.duration_seconds || 0) / 60) || 0,
             duration_seconds: Number(session.duration_seconds || 0),
-            honesty_mode: session.honesty_mode,
             interruption_reason: session.interruption_reason || null,
             interruption_count: session.interruption_count || 0,
             mode: session.mode || 'Stopwatch',

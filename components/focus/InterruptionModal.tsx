@@ -25,7 +25,6 @@ interface InterruptionModalProps {
     visible: boolean;
     durationSeconds: number;
     goalName: string;
-    honestyMode: boolean;
     onSave: (data: { interruptionReason: string | null; interruptionCount: number }) => void;
     onCancel: () => void;
 }
@@ -34,7 +33,6 @@ export default function InterruptionModal({
     visible,
     durationSeconds,
     goalName,
-    honestyMode,
     onSave,
     onCancel,
 }: InterruptionModalProps) {
@@ -79,11 +77,7 @@ export default function InterruptionModal({
                         <View style={styles.summaryCard}>
                             <Text style={styles.summaryDuration}>{formatDuration(durationSeconds)}</Text>
                             <Text style={styles.summaryGoal}>{goalName}</Text>
-                            {honestyMode && (
-                                <View style={styles.honestyBadge}>
-                                    <Text style={styles.honestyBadgeText}>🛡️ Honesty Mode</Text>
-                                </View>
-                            )}
+
                         </View>
 
                         {/* Perfect Session Button */}
@@ -198,18 +192,7 @@ const styles = StyleSheet.create({
         color: Colors.text.secondary,
         marginTop: Spacing.xs,
     },
-    honestyBadge: {
-        backgroundColor: Colors.primary + '20',
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.xs,
-        borderRadius: BorderRadius.full,
-        marginTop: Spacing.sm,
-    },
-    honestyBadgeText: {
-        fontSize: Typography.small.fontSize,
-        color: Colors.primary,
-        fontWeight: '600',
-    },
+
     perfectButton: {
         backgroundColor: Colors.success + '15',
         borderWidth: 2,

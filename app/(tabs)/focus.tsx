@@ -12,7 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Use legacy API for Expo Go compatibility
 import * as FileSystem from 'expo-file-system/legacy';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDuration } from '../../utils/time';
 
@@ -42,7 +42,7 @@ export default function FocusScreen() {
     const [sessionVideoUri, setSessionVideoUri] = useState<string | null>(null);
 
     // Honesty mode
-    const [honestyMode, setHonestyMode] = useState(false);
+
 
     // Modals
     const [showModeModal, setShowModeModal] = useState(false);
@@ -335,7 +335,6 @@ export default function FocusScreen() {
 
             console.log('[FocusScreen] Saving focus session:', {
                 durationSeconds,
-                honestyMode,
                 goalId: selectedGoal.id,
                 videoPath
             });
@@ -344,7 +343,6 @@ export default function FocusScreen() {
                 user_id: user.id,
                 goal_id: selectedGoal.id,
                 duration_seconds: durationSeconds,
-                honesty_mode: honestyMode,
                 interruption_reason: data.interruptionReason,
                 interruption_count: data.interruptionCount,
                 mode: timerMode,
@@ -398,7 +396,6 @@ export default function FocusScreen() {
                     visible={showInterruptionModal}
                     durationSeconds={sessionDuration}
                     goalName={selectedGoal?.name || ''}
-                    honestyMode={honestyMode}
                     onSave={handleSessionSave}
                     onCancel={() => setShowInterruptionModal(false)}
                 />
@@ -467,27 +464,7 @@ export default function FocusScreen() {
                     )}
                 </View>
 
-                {/* Honesty Mode Toggle */}
-                <View style={styles.section}>
-                    <View style={styles.honestyRow}>
-                        <View style={styles.honestyInfo}>
-                            <Text style={styles.honestyLabel}>
-                                {honestyMode ? '🛡️ Honesty Mode' : '🔓 Standard Mode'}
-                            </Text>
-                            <Text style={styles.honestyDesc}>
-                                {honestyMode
-                                    ? 'High accountability, counts as net investment'
-                                    : 'Counts as total time only'}
-                            </Text>
-                        </View>
-                        <Switch
-                            value={honestyMode}
-                            onValueChange={setHonestyMode}
-                            trackColor={{ false: Colors.border.default, true: Colors.primary }}
-                            thumbColor={Colors.surface}
-                        />
-                    </View>
-                </View>
+
 
                 {/* Timer Mode Info */}
                 <View style={styles.section}>
@@ -540,7 +517,6 @@ export default function FocusScreen() {
                 visible={showInterruptionModal}
                 durationSeconds={sessionDuration}
                 goalName={selectedGoal?.name || ''}
-                honestyMode={honestyMode}
                 onSave={handleSessionSave}
                 onCancel={() => setShowInterruptionModal(false)}
             />
@@ -663,28 +639,6 @@ const styles = StyleSheet.create({
         color: Colors.text.tertiary,
         marginTop: Spacing.xs,
     },
-    honestyRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.md,
-        padding: Spacing.lg,
-    },
-    honestyInfo: {
-        flex: 1,
-        marginRight: Spacing.md,
-    },
-    honestyLabel: {
-        fontSize: Typography.body.fontSize,
-        fontWeight: '600',
-        color: Colors.text.primary,
-    },
-    honestyDesc: {
-        fontSize: Typography.small.fontSize,
-        color: Colors.text.secondary,
-        marginTop: 2,
-    },
     modeInfoCard: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -735,3 +689,5 @@ const styles = StyleSheet.create({
         color: Colors.surface,
     },
 });
+
+

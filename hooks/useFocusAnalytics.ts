@@ -4,18 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 export interface FocusAnalytics {
   totalMinutes: number;
   totalSeconds: number;
-  netCommittedMinutes: number;
-  selfDeceptionMinutes: number;
-  honestyRatio: number;
 }
 
 export function useFocusAnalytics(userId: string | null) {
   const [analytics, setAnalytics] = useState<FocusAnalytics>({
     totalMinutes: 0,
     totalSeconds: 0,
-    netCommittedMinutes: 0,
-    selfDeceptionMinutes: 0,
-    honestyRatio: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,19 +32,11 @@ export function useFocusAnalytics(userId: string | null) {
       data?.forEach((session) => {
         const duration = session.duration_seconds || 0;
         totalSeconds += duration;
-        if (session.honesty_mode) {
-          netSeconds += duration;
-        } else {
-          deceptionSeconds += duration;
-        }
       });
 
       setAnalytics({
         totalMinutes: Math.floor(totalSeconds / 60),
         totalSeconds: totalSeconds,
-        netCommittedMinutes: Math.floor(netSeconds / 60),
-        selfDeceptionMinutes: Math.floor(deceptionSeconds / 60),
-        honestyRatio: totalSeconds > 0 ? netSeconds / totalSeconds : 0,
       });
     } catch (err: any) {
       setError(err.message);
